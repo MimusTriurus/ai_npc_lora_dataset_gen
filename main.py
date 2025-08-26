@@ -4,7 +4,7 @@ from typing import Optional, List
 from openai import OpenAI
 import os
 
-# Neutral, Angry, Happy, Sad, Surprise
+emotions =['Neutral', 'Angry', 'Happy', 'Sad', 'Surprise']
 MODEL = "qwen3:8b"
 OLLAMA_HOST = "http://localhost:11434"
 PARTIAL_DATASET_SIZE = 50
@@ -38,6 +38,22 @@ Format each entry strictly as:
 <number>|<user query>|<emotion>|<NPC response>
 The response should only contain the dataset without any extra information.
 """
+
+def make_prompt(npc_description: str, target_emotion, records_count: int) -> str:
+    prompt = f"""NPC Description:
+    {npc_description}
+
+    Instruction:
+    Generate a dataset of {records_count} interactions with the NPC described above.
+    For each interaction:
+    Create a user query designed to provoke one of the specified emotion {target_emotion} in the NPC, based strictly on their background, race, and traits.
+
+    Generate the NPC's in-character response, accurately reflecting the targeted emotion - {target_emotion}.
+    Format each entry strictly as:
+    <number>|<user query>|<emotion>|<NPC response>
+    The response should only contain the dataset without any extra information.
+    """
+    return prompt
 
 class OllamaDialogueExtractor:
     def __init__(self, host: str = "http://localhost:11434"):
@@ -88,7 +104,7 @@ def extract_dialogue_lines(text: str) -> List[str]:
     return list(dialogue_lines)
 
 
-def save_to_file(lines: List[str], filename: str = "dialogue_output.txt") -> bool:
+def save_to_file(lines: List[str], filename: str) -> bool:
     try:
         with open(filename, 'w', encoding='utf-8') as f:
             for line in lines:
@@ -99,9 +115,10 @@ def save_to_file(lines: List[str], filename: str = "dialogue_output.txt") -> boo
         print(f"Ошибка при сохранении файла: {e}")
         return False
 
-def make_dataset_using_ollama() -> list:
+def make_dataset_using_ollama(emotion: str) -> list:
     extractor = OllamaDialogueExtractor(OLLAMA_HOST)
-    response = extractor.send_request(MODEL, PROMPT, **GENERATION_PARAMS)
+    prompt = make_prompt(NPC_DESCRIPTION, emotion, PARTIAL_DATASET_SIZE)
+    response = extractor.send_request(MODEL, prompt, **GENERATION_PARAMS)
 
     if response is None:
         print("Can't get a response from Ollama")
@@ -121,18 +138,20 @@ def main():
     print(f"Model: {MODEL}")
     print(f"Ollama host: {OLLAMA_HOST}")
 
-    dataset = set()
-    while len(dataset) < DATASET_SIZE:
-        print('== Request processing....')
-        partial_dataset = make_dataset_using_ollama()
-        dataset.update(partial_dataset)
-        print(f"== Full dataset current size {len(dataset)}")
+    for emotion in emotions:
+        dataset = set()
+        print(f'== Generate dataset for emotion: {emotion}')
+        while len(dataset) < DATASET_SIZE:
+            print('== Request processing....')
+            partial_dataset = make_dataset_using_ollama(emotion)
+            dataset.update(partial_dataset)
+            print(f"== Full dataset current size {len(dataset)}")
 
-    print(f"== Full dataset final size {len(dataset)}")
-    if save_to_file(list(dataset), OUTPUT_FILE):
-        print(f"\nDataset saved into: '{OUTPUT_FILE}'")
-    else:
-        print("\nError on file save")
+        print(f"== Full dataset final size {len(dataset)}")
+        if save_to_file(list(dataset), OUTPUT_FILE):
+            print(f"\nDataset saved into: '{OUTPUT_FILE}'")
+        else:
+            print("\nError on file save")
 
 
 if __name__ == "__main__":
