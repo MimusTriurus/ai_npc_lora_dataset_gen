@@ -2,27 +2,24 @@ import ollama
 import re
 from typing import Optional, List
 import random
+import os
 
 emotions =['Neutral', 'Angry', 'Happy', 'Sad', 'Surprise']
-MODEL = "qwen3:8b"
-OLLAMA_HOST = "http://localhost:11434"
-PARTIAL_DATASET_SIZE = 50
-DATASET_SIZE = 500
-OUTPUT_FILE = f"npc_lora_dataset.jsonl"
-NEGATIVE_ITERATIONS_COUNT = 5
-
-GENERATION_PARAMS = {
-    'temperature': 0.9,
-    'top_p': 0.9,
-    'top_k': 40
-}
-
-NPC_DESCRIPTION = f'''Name: Kaelen Swiftarrow
+DEFAULT_NPC_DESCRIPTION = f'''Name: Kaelen Swiftarrow
 Race: Half-Elf
 Specialization: Ranger / Beastmaster
 Background: A frontier outcast who found kinship with a wolf companion. Now a silent guardian of the wilds.
 Character Traits: Loner, distrustful-of-civilization, protective, dry-wit, stern.
 '''
+
+MODEL = os.getenv('MODEL', 'qwen3:8b')
+OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+PARTIAL_DATASET_SIZE = os.getenv('PARTIAL_DATASET_SIZE', 50)
+DATASET_SIZE = os.getenv('DATASET_SIZE', 500)
+OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'npc_lora_dataset.jsonl')
+NEGATIVE_ITERATIONS_COUNT = os.getenv('NEGATIVE_ITERATIONS_COUNT', 5)
+
+NPC_DESCRIPTION = os.getenv('NPC_DESCRIPTION', DEFAULT_NPC_DESCRIPTION)
 
 def make_prompt(npc_description: str, target_emotion, records_count: int) -> str:
     prompt = f"""NPC Description:
@@ -39,7 +36,6 @@ def make_prompt(npc_description: str, target_emotion, records_count: int) -> str
     The response should only contain the dataset without any extra information.
     """
     return prompt
-
 
 def make_negative_prompt(npc_description: str, records_count: int) -> str:
     prompt = f'''
@@ -59,7 +55,7 @@ class OllamaDialogueExtractor:
     def __init__(self, host: str = "http://localhost:11434"):
         self.client = ollama.Client(host=host)
 
-    def send_request(self, model: str, prompt: str, **kwargs) -> Optional[str]:
+    def send_request(self, model: str, prompt: str) -> Optional[str]:
         try:
             response = self.client.generate(
                 model=model,
@@ -85,7 +81,6 @@ class OllamaDialogueExtractor:
             print(f"Ошибка при получении списка моделей: {e}")
             return False
 
-
 def extract_dialogue_lines(text: str) -> List[str]:
     pattern = r'<think>.+?</think>(.+)'
     dialogue_lines = set()
@@ -103,7 +98,6 @@ def extract_dialogue_lines(text: str) -> List[str]:
 
     return list(dialogue_lines)
 
-
 def save_to_file(lines: List[str], filename: str) -> bool:
     with open(filename, 'w', encoding='utf-8') as f:
         for line in lines:
@@ -113,7 +107,7 @@ def save_to_file(lines: List[str], filename: str) -> bool:
 def make_dataset_using_ollama(emotion: str) -> list:
     extractor = OllamaDialogueExtractor(OLLAMA_HOST)
     prompt = make_prompt(NPC_DESCRIPTION, emotion, PARTIAL_DATASET_SIZE)
-    response = extractor.send_request(MODEL, prompt, **GENERATION_PARAMS)
+    response = extractor.send_request(MODEL, prompt)
 
     if response is None:
         print("Can't get a response from Ollama")
@@ -130,7 +124,7 @@ def make_dataset_using_ollama(emotion: str) -> list:
 def make_negative_dataset_using_ollama() -> list:
     extractor = OllamaDialogueExtractor(OLLAMA_HOST)
     prompt = make_negative_prompt(NPC_DESCRIPTION, PARTIAL_DATASET_SIZE)
-    response = extractor.send_request(MODEL, prompt, **GENERATION_PARAMS)
+    response = extractor.send_request(MODEL, prompt)
 
     if response is None:
         print("Can't get a response from Ollama")
