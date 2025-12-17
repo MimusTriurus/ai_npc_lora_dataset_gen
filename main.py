@@ -1,5 +1,5 @@
 
-import ollama
+
 import json
 import random
 import os
@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from helpers import actions_dict_to_signatures, make_actions_str, PromptBuilder
+from ollama_helper import *
 
 DEFAULT_NPC_DESCRIPTION = '''
 <npc_description> 
@@ -17,10 +18,6 @@ BACKGROUND: A mysterious trader from Resident Evil 4 who appears in unexpected p
 TRAITS: Charismatic, loves making deals, always smiling, legendary catchphrase "What are ya buying"? 
 </npc_description>
 '''
-
-MODEL = os.getenv('MODEL', 'qwen3:8b')
-OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'npc_lora_dataset.jsonl')
 
 # Сколько примеров на сценарий
 N_TRADE_WEAPON   = int(os.getenv('N_TRADE_WEAPON',   '800'))
@@ -112,47 +109,6 @@ def build_user_json(context: str, state: str, request: str) -> str:
         "state_of_user": state,
         "request_of_user": request
     }, ensure_ascii=False)
-
-def build_prompt(system_text: str, user_json: str) -> str:
-    # Простой двухчастный промпт (SYSTEM + USER)
-    return f"SYSTEM:\n{system_text}\n\nUSER:\n{user_json}"
-
-# --------------------
-# Работа с Ollama
-# --------------------
-class OllamaHelper:
-    def __init__(self, host: str):
-        self.client = ollama.Client(host=host)
-
-    def check_model_exists(self, model: str) -> bool:
-        try:
-            models = self.client.list()
-            names = [m['model'] for m in models['models']]
-            return model in names
-        except Exception as e:
-            print(f"[ERR] listing models: {e}")
-            return False
-
-    def generate(self, model: str, prompt: str) -> Tuple[Optional[str], Optional[str]]:
-        try:
-            resp = self.client.generate(
-                model=model,
-                prompt=prompt,
-                stream=False,
-                options={
-                    # Рекомендованные настройки для «thinking» режима
-                    "temperature": 0.6,
-                    "top_p": 0.95,
-                    "top_k": 20
-                },
-            )
-            return resp.get('response', None), resp.get('thinking', None)
-        except ollama.ResponseError as e:
-            print(f"[ERR] ollama generate: {e}")
-            return None, None
-        except Exception as e:
-            print(f"[ERR] unexpected: {e}")
-            return None, None
 
 # --------------------
 # Сценарии пользователя
@@ -308,7 +264,7 @@ def generate_dataset() -> List[Dict]:
 
     for i, make_user in enumerate(scenarios, 1):
         user_json = make_user()
-        '''
+
         print(f'')
         prompt = build_prompt(SYSTEM_PROMPT, user_json)
         json_str, think = helper.generate(MODEL, prompt)
@@ -329,7 +285,6 @@ def generate_dataset() -> List[Dict]:
         if key in seen:
             continue
         seen.add(key)
-        '''
         row = wrap_chatml(user_json, '', dict())
         data.append(row)
 
