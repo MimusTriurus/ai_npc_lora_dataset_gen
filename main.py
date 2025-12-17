@@ -1,176 +1,363 @@
+
 import ollama
-import re
-from typing import Optional, List
+import json
 import random
 import os
+import time
+from typing import Dict, List, Optional, Tuple
 
-emotions =['Neutral', 'Angry', 'Happy', 'Sad', 'Surprise']
-DEFAULT_NPC_DESCRIPTION = f'''Name: Kaelen Swiftarrow
-Race: Half-Elf
-Specialization: Ranger / Beastmaster
-Background: A frontier outcast who found kinship with a wolf companion. Now a silent guardian of the wilds.
-Character Traits: Loner, distrustful-of-civilization, protective, dry-wit, stern.
+from helpers import actions_dict_to_signatures, make_actions_str, PromptBuilder
+
+DEFAULT_NPC_DESCRIPTION = '''
+<npc_description> 
+NAME: The Merchant 
+RACE: Human 
+SPECIALIZATION: Weapons, upgrades, rare items 
+BACKGROUND: A mysterious trader from Resident Evil 4 who appears in unexpected places to sell the player essential gear for survival. 
+TRAITS: Charismatic, loves making deals, always smiling, legendary catchphrase "What are ya buying"? 
+</npc_description>
 '''
 
 MODEL = os.getenv('MODEL', 'qwen3:8b')
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
-PARTIAL_DATASET_SIZE = os.getenv('PARTIAL_DATASET_SIZE', 50)
-DATASET_SIZE = os.getenv('DATASET_SIZE', 500)
 OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'npc_lora_dataset.jsonl')
-NEGATIVE_ITERATIONS_COUNT = os.getenv('NEGATIVE_ITERATIONS_COUNT', 5)
+
+# Сколько примеров на сценарий
+N_TRADE_WEAPON   = int(os.getenv('N_TRADE_WEAPON',   '800'))
+N_AMMO           = int(os.getenv('N_AMMO',           '400'))
+N_UPGRADES       = int(os.getenv('N_UPGRADES',       '300'))
+N_SHOW_ALL       = int(os.getenv('N_SHOW_ALL',       '200'))
+N_OFF_ROLE       = int(os.getenv('N_OFF_ROLE',       '300'))
+
+# Пауза между запросами (мс), чтобы не перегружать Ollama
+DELAY_MS = int(os.getenv('DELAY_MS', '100'))
 
 NPC_DESCRIPTION = os.getenv('NPC_DESCRIPTION', DEFAULT_NPC_DESCRIPTION)
 
-def make_prompt(npc_description: str, target_emotion, records_count: int) -> str:
-    prompt = f"""NPC Description:
-    {npc_description}
+WEAPONS = [
+    "pistol",
+    "shotgun",
+    "rifle",
+    "SMG",
+    "sniper_rifle",
+    "rocket_launcher"
+]
 
-    Instruction:
-    Generate a dataset of {records_count} interactions with the NPC described above.
-    For each interaction:
-    Create a user query designed to provoke one of the specified emotion {target_emotion} in the NPC, based strictly on their background, race, and traits.
+WEAPON_UPGRADES = [
+    "scope",                # оптический прицел
+    "extended_magazine",    # увеличенный магазин
+    "silencer",             # глушитель
+    "laser_sight",          # лазерный целеуказатель
+    "grip",                 # эргономичная рукоять
+    "recoil_reducer",       # компенсатор отдачи
+    "quick_reload_kit",     # ускоренная перезарядка
+    "damage_booster",       # усилитель урона
+    "thermal_scope",        # тепловизионный прицел
+    "stability_mod",        # стабилизатор
+    "barrel_upgrade",       # улучшенный ствол
+    "trigger_upgrade",      # улучшенный спусковой механизм
+    "camouflage_skin"       # камуфляжная раскраска
+]
 
-    Generate the NPC's in-character response, accurately reflecting the targeted emotion - {target_emotion}.
-    Format each entry strictly as:
-    <number>|<user query>|<emotion>|<NPC response>
-    The response should only contain the dataset without any extra information.
-    """
-    return prompt
+HEALING_ITEMS = [
+    "bandage",                  # бинт
+    "medkit",                   # аптечка
+    "antidote",                 # противоядие
+    "adrenaline_shot",          # укол адреналина
+    "regeneration_serum",       # сыворотка регенерации
+    "painkillers",              # обезболивающие
+    "revive_kit"                # комплект для реанимации
+]
 
-def make_negative_prompt(npc_description: str, records_count: int) -> str:
-    prompt = f'''
-    NPC: {npc_description}.
-    Generate deliberately irrelevant questions (things that the NPC described above cannot know, such as what the internet is or whether he knows that he is an NPC) for the NPC described above. 
-    The NPC should respond to such questions with anger or confusion (not understanding what is being asked), but in accordance with his role and character traits.
-    The NPC should not assume what the player means, but immediately respond that they do not understand what is being said.
-    Each entry format:
-    <number>|<player question>|<emotion>|<NPC response>
-    Allowed emotions: [Angry], [Surprise].
-    Generate {records_count} lines, with many questions deliberately outside the NPC’s domain.
-    '''
+AMMO = ["9x18", "7.62x54", "7.62x39", "5.45x39", "5.56x45", "12.7x108", "12/70"]
+EMOTIONS = ["Neutral","Angry","Happy","Sad","Surprise"]
 
-    return prompt
+ACTIONS_NO_ARG = {
+    "DoNothing": [],
+    "ShowAllGoodsForSale": [],
+    "ShowAllWeaponsForSale": [],
+    "ShowAllAmmoForSale": [],
+    "ShowAllWeaponUpgrades": [],
+    "ShowAllHealingItems": [],
+    "NotEnoughGoldForBuy": []
+}
+ACTIONS_WITH_WEAPON = {
+    "ShowWeaponUpgrades": WEAPON_UPGRADES,
+    "ShowAmmoForSale": AMMO,
+    "ShowWeaponForSale": WEAPONS,
+    "ShowHealingItemForSale": HEALING_ITEMS,
 
-class OllamaDialogueExtractor:
-    def __init__(self, host: str = "http://localhost:11434"):
+    "SellAmmo": AMMO,
+    "SellWeapon": WEAPONS,
+    "SellWeaponUpgrade": WEAPON_UPGRADES,
+    "SellHealingItem": HEALING_ITEMS,
+}
+
+actions_str = make_actions_str(actions_dict_to_signatures(ACTIONS_NO_ARG) + actions_dict_to_signatures(ACTIONS_WITH_WEAPON))
+
+
+promptBuilder = PromptBuilder(
+    "resources/description.md",
+    "resources/user_description.md",
+    "resources/systemPrompt.md",
+    "resources/chat_example.md",
+    "resources/actions.txt"
+)
+
+SYSTEM_PROMPT = promptBuilder.build_base_prompt()
+
+def build_user_json(context: str, state: str, request: str) -> str:
+    return json.dumps({
+        "context": context,
+        "state_of_user": state,
+        "request_of_user": request
+    }, ensure_ascii=False)
+
+def build_prompt(system_text: str, user_json: str) -> str:
+    # Простой двухчастный промпт (SYSTEM + USER)
+    return f"SYSTEM:\n{system_text}\n\nUSER:\n{user_json}"
+
+# --------------------
+# Работа с Ollama
+# --------------------
+class OllamaHelper:
+    def __init__(self, host: str):
         self.client = ollama.Client(host=host)
-
-    def send_request(self, model: str, prompt: str) -> Optional[str]:
-        try:
-            response = self.client.generate(
-                model=model,
-                prompt=prompt,
-                stream=False,
-            )
-
-            return response['response']
-
-        except ollama.ResponseError as e:
-            print(f"Error during Ollama generation process: {e}")
-            return None
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            return None
 
     def check_model_exists(self, model: str) -> bool:
         try:
             models = self.client.list()
-            model_names = [m['model'] for m in models['models']]
-            return model in model_names
+            names = [m['model'] for m in models['models']]
+            return model in names
         except Exception as e:
-            print(f"Ошибка при получении списка моделей: {e}")
+            print(f"[ERR] listing models: {e}")
             return False
 
-def extract_dialogue_lines(text: str) -> List[str]:
-    pattern = r'<think>.+?</think>(.+)'
-    dialogue_lines = set()
-    matches = re.findall(pattern, text, re.MULTILINE | re.DOTALL)
-    for match in matches:
-        groups = match.lstrip().rstrip().split('\n')
-        for group in groups:
-            segments = group.split('|')
-            if len(segments) >= 4:
-                question = segments[1].replace('"', '')
-                emotion = segments[2]
-                answer = segments[3].replace('"', '')
-                line = '{"instruction": "' + question + '", "output": "' + '[' + emotion + '] ' + answer + '"}'
-                dialogue_lines.add(line)
+    def generate(self, model: str, prompt: str) -> Tuple[Optional[str], Optional[str]]:
+        try:
+            resp = self.client.generate(
+                model=model,
+                prompt=prompt,
+                stream=False,
+                options={
+                    # Рекомендованные настройки для «thinking» режима
+                    "temperature": 0.6,
+                    "top_p": 0.95,
+                    "top_k": 20
+                },
+            )
+            return resp.get('response', None), resp.get('thinking', None)
+        except ollama.ResponseError as e:
+            print(f"[ERR] ollama generate: {e}")
+            return None, None
+        except Exception as e:
+            print(f"[ERR] unexpected: {e}")
+            return None, None
 
-    return list(dialogue_lines)
+# --------------------
+# Сценарии пользователя
+# --------------------
+def scenario_trade_weapon() -> str:
+    w = random.choice(WEAPONS)
+    price = random.choice([100,150,250,300,500])
+    stock = random.choice([0,1,2,3])
+    gold = random.choice([50,90,120,300,800])
+    context = f"{w.capitalize()} - Price: {price} gold - Amount: {stock}"
+    state = f"Customer has {gold} gold."
+    request = random.choice([f"Sell me the {w}!", f"I want a {w}.", f"How much for a {w}?", f"I need a {w}, now."])
+    return build_user_json(context, state, request)
 
-def save_to_file(lines: List[str], filename: str) -> bool:
-    with open(filename, 'w', encoding='utf-8') as f:
-        for line in lines:
-            f.write(line + '\n')
-    return True
+def scenario_ammo() -> str:
+    w = random.choice(WEAPONS)
+    price = random.choice([20,30,40,60])
+    packs = random.choice([1,2,3])
+    context = f"{w} ammo - Price: {price} gold per pack"
+    state = f"Customer has {random.choice([15,25,35,80,120])} gold."
+    request = f"Sell me {w} ammo, {packs} packs."
+    return build_user_json(context, state, request)
 
-def make_dataset_using_ollama(emotion: str) -> list:
-    extractor = OllamaDialogueExtractor(OLLAMA_HOST)
-    prompt = make_prompt(NPC_DESCRIPTION, emotion, PARTIAL_DATASET_SIZE)
-    response = extractor.send_request(MODEL, prompt)
+def scenario_upgrades() -> str:
+    w = random.choice(WEAPONS)
+    context = f"Upgrades available for {w}"
+    state = f"Customer has {random.choice([200,400,600,1000])} gold."
+    request = f"Show {w} upgrades."
+    return build_user_json(context, state, request)
 
-    if response is None:
-        print("Can't get a response from Ollama")
-        return []
-    dialogue_lines = extract_dialogue_lines(response)
+def scenario_show_all() -> str:
+    context = "Weapons & ammo & upgrades & healing available"
+    state = "Customer has unknown gold."
+    request = random.choice(["Show me everything!", "What do you sell?", "List all goods."])
+    return build_user_json(context, state, request)
 
-    if not dialogue_lines:
-        print("Dataset is empty")
-        print("\nFull Ollama response:")
-        print(response)
-        return []
-    return dialogue_lines
+def scenario_off_role() -> str:
+    context = "General store context"
+    state = "Customer status unclear."
+    request = random.choice([
+        "What's the weather tomorrow?",
+        "Tell me about quantum mechanics.",
+        "How to file taxes?",
+        "Sing me a song.",
+        "Who's the president?",
+        "Give me a recipe for tiramisu.",
+        "Let's discuss philosophy of mind.",
+        "Translate this into French.",
+        "Do you know you're an NPC?",
+        "What is the internet?"
+    ])
+    return build_user_json(context, state, request)
 
-def make_negative_dataset_using_ollama() -> list:
-    extractor = OllamaDialogueExtractor(OLLAMA_HOST)
-    prompt = make_negative_prompt(NPC_DESCRIPTION, PARTIAL_DATASET_SIZE)
-    response = extractor.send_request(MODEL, prompt)
+# --------------------
+# Парсинг и валидация ответа (<think> + JSON)
+# --------------------
+def extract_think_and_json(json_str: str) -> Optional[Dict]:
+    start = json_str.find("{")
+    if start == -1:
+        return None
 
-    if response is None:
-        print("Can't get a response from Ollama")
-        return []
-    dialogue_lines = extract_dialogue_lines(response)
+    depth = 0
+    json_chars = []
+    for ch in json_str[start:]:
+        json_chars.append(ch)
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                break
 
-    if not dialogue_lines:
-        print("Dataset is empty")
-        print("\nFull Ollama response:")
-        print(response)
-        return []
-    return dialogue_lines
+    json_str = "".join(json_chars).strip()
+    # Проверим, что это валидный JSON
+    try:
+        return json.loads(json_str)  # проверка
+    except json.JSONDecodeError as e:
+        print(e)
+        return None
+
+
+def validate_action_emotion(obj: Dict, user_json: str) -> bool:
+    try:
+         # обязательные поля
+        emotion = obj["emotion"]
+        answer  = obj["answer"]
+        action  = obj["action"]["name"]
+        params  = obj["action"]["parameters"]
+
+        if emotion not in EMOTIONS:
+            return False
+
+        # проверка действий/параметров
+        if action in ACTIONS_NO_ARG:
+            if params != []:
+                return False
+        elif action in ACTIONS_WITH_WEAPON:
+            if not (isinstance(params, list) and len(params) == 1 and params[0] in WEAPONS):
+                return False
+        else:
+            return False
+
+        # off-role эвристика: если запрос явный off-role, действие должно быть do_nothing
+        u = json.loads(user_json)
+        req = (u.get("request_of_user","") or "").lower()
+        keys = ["sell","weapon","ammo","upgrade","pistol","shotgun","rifle","smg","sniper","rocket","gold"]
+        is_off = not any(k in req for k in keys)
+        if is_off and action != "do_nothing":
+            return False
+
+        # answer должен быть коротким
+        if not isinstance(answer, str) or len(answer) == 0:
+            return False
+        if len(answer) > 400:
+            return False
+
+        return True
+    except Exception as e:
+        return False
+
+# --------------------
+# Обёртка ChatML
+# --------------------
+def wrap_chatml(user_content: str, think: str, json_obj: Dict) -> Dict:
+    assistant = "<think>\n" + (think.strip() if think else "") + "\n</think>\n\n" + json.dumps(json_obj, ensure_ascii=False)
+    return {
+        "messages": [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": assistant}
+        ]
+    }
+
+# --------------------
+# Генерация датасета
+# --------------------
+def generate_dataset() -> List[Dict]:
+    helper = OllamaHelper(OLLAMA_HOST)
+
+    if not helper.check_model_exists(MODEL):
+        raise RuntimeError(f"Model '{MODEL}' not found in Ollama at {OLLAMA_HOST}")
+
+    scenarios = (
+        [scenario_trade_weapon] * N_TRADE_WEAPON +
+        [scenario_ammo]         * N_AMMO +
+        [scenario_upgrades]     * N_UPGRADES +
+        [scenario_show_all]     * N_SHOW_ALL +
+        [scenario_off_role]     * N_OFF_ROLE
+    )
+    random.shuffle(scenarios)
+
+    data: List[Dict] = []
+    seen = set()  # дедупликация по (user_json, action, params)
+
+    for i, make_user in enumerate(scenarios, 1):
+        user_json = make_user()
+        '''
+        print(f'')
+        prompt = build_prompt(SYSTEM_PROMPT, user_json)
+        json_str, think = helper.generate(MODEL, prompt)
+        if not json_str:
+            print(f"[WARN] empty response at {i}")
+            continue
+
+        obj = extract_think_and_json(json_str)
+        if not obj:
+            print(f"[WARN] parse failed at {i}\n{json_str[:200]}")
+            continue
+
+        if not validate_action_emotion(obj, user_json):
+            print(f"[WARN] validation failed at {i} -> {obj}")
+            continue
+
+        key = (user_json, obj["action"]["name"], tuple(obj["action"]["parameters"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        '''
+        row = wrap_chatml(user_json, '', dict())
+        data.append(row)
+
+        if i % 50 == 0:
+            print(f"[{i}/{len(scenarios)}] ok={len(data)}")
+            time.sleep(DELAY_MS / 1000.0)
+
+    return data
+
+def save_jsonl(rows: List[Dict], path: str) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 def main():
     print(f"= Model: {MODEL}")
     print(f"= Ollama host: {OLLAMA_HOST}")
+    print(f"= Target output: {OUTPUT_FILE}")
 
-    dataset = set()
-    print('= Generate negative requests')
-    for i in range(NEGATIVE_ITERATIONS_COUNT):
-        print(f'== {i}/{NEGATIVE_ITERATIONS_COUNT - 1}')
-        negative_dataset = make_negative_dataset_using_ollama()
-        dataset.update(negative_dataset)
+    rows = generate_dataset()
+    random.shuffle(rows)
 
-    for emotion in emotions:
-        print(f'== Generate dataset for emotion: {emotion}')
-        emotion_dataset = set()
-        while len(emotion_dataset) < DATASET_SIZE:
-            print('=== Request processing....')
-            emotion_dataset.update(make_dataset_using_ollama(emotion))
-            print(f"=== Emotions dataset current size {len(emotion_dataset)}")
-        dataset.update(emotion_dataset)
-        print(f"== Full dataset current size {len(dataset)}")
-    if not dataset:
-        print(f'= Dataset is empty!')
+    if not rows:
+        print("= Dataset is empty!")
         return
-    print(f"= Full dataset final size {len(dataset)}")
 
-    shuffled_list = list(dataset)
-    random.shuffle(shuffled_list)
-
-    if save_to_file(shuffled_list, OUTPUT_FILE):
-        print(f"\n= Dataset saved into: '{OUTPUT_FILE}'")
-    else:
-        print("\n= Error on file save")
-
+    save_jsonl(rows, OUTPUT_FILE)
+    print(f"= Saved {len(rows)} rows to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
