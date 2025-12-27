@@ -1,0 +1,445 @@
+{
+  "npc_desc": "**NAME**: The Merchant\n**RACE**: Human\n**SPECIALIZATION**: Weapons, upgrades, rare items\n**BACKGROUND**: A mysterious trader from Resident Evil 4 who appears in unexpected places to sell the player essential gear for survival.\n**TRAITS**: Charismatic, loves making deals, always smiling, legendary catchphrase \"What are ya buying\"?",
+  "questions_templates": [
+    {
+      "base_template": "I'd like to buy some ammo for my <weapon>.",
+      "count": 5,
+      "action": "SellAmmo",
+      "motivation": "Needs ammunition compatible with a specific weapon."
+    },
+    {
+      "base_template": "Sell me the <weapon>.",
+      "count": 5,
+      "action": "SellWeapon",
+      "motivation": "Wants to purchase a specific weapon."
+    },
+    {
+      "base_template": "Sell me the <upgrade> for my weapon.",
+      "count": 5,
+      "action": "SellWeaponUpgrade",
+      "motivation": "Seeks a specific upgrade to enhance weapon performance."
+    },
+    {
+      "base_template": "I'll take the <medical_item> for healing.",
+      "count": 5,
+      "action": "SellHealingItem",
+      "motivation": "Needs a specific healing item to recover health."
+    },
+    {
+      "base_template": "Show me everything you have for sale.",
+      "count": 5,
+      "action": "ShowAllGoodsForSale",
+      "motivation": "Wants to see the full list of goods offered by the merchant."
+    },
+    {
+      "base_template": "I'm looking for weapons. What do you have?",
+      "count": 5,
+      "action": "ShowAllWeaponsForSale",
+      "motivation": "Wants to browse all weapons available for purchase."
+    },
+    {
+      "base_template": "Let me see all the ammo you're selling.",
+      "count": 5,
+      "action": "ShowAllAmmoForSale",
+      "motivation": "Needs ammunition and wants to review all options."
+    },
+    {
+      "base_template": "Do you have any upgrades for weapons?",
+      "count": 5,
+      "action": "ShowAllWeaponUpgrades",
+      "motivation": "Interested in improving existing weapons."
+    },
+    {
+      "base_template": "Show me your healing items.",
+      "count": 5,
+      "action": "ShowAllHealingItems",
+      "motivation": "Wants to restore health or prepare for future combat."
+    }
+  ],
+  "roles": [
+    {
+      "id": "rookie_survivor",
+      "name": "Rookie Survivor",
+      "description": "A newcomer trying to stay alive in a dangerous zone.",
+      "speech_style": "nervous, hesitant, polite",
+      "motivation": "needs basic weapons and healing items"
+    },
+    {
+      "id": "veteran_soldier",
+      "name": "Veteran Soldier",
+      "description": "A battle-tested professional with years of combat experience.",
+      "speech_style": "direct, confident, tactical",
+      "motivation": "seeks reliable firearms and ammo"
+    },
+    {
+      "id": "urban_scavenger",
+      "name": "Urban Scavenger",
+      "description": "A street-smart survivor searching ruins for supplies.",
+      "speech_style": "casual, opportunistic, sarcastic",
+      "motivation": "looks for cheap ammo and meds"
+    },
+    {
+      "id": "field_medic",
+      "name": "Field Medic",
+      "description": "A trained medical specialist in conflict zones.",
+      "speech_style": "calm, focused, professional",
+      "motivation": "needs healing items and emergency kits"
+    },
+    {
+      "id": "black_market_runner",
+      "name": "Black Market Runner",
+      "description": "A shady dealer moving contraband quietly.",
+      "speech_style": "low-key, coded, cautious",
+      "motivation": "interested in rare upgrades and ammo"
+    },
+    {
+      "id": "tech_engineer",
+      "name": "Tech Engineer",
+      "description": "A specialist in weapon modifications.",
+      "speech_style": "precise, analytical, nerdy",
+      "motivation": "seeks advanced weapon upgrades"
+    },
+    {
+      "id": "mercenary",
+      "name": "Mercenary",
+      "description": "A hired gun who values efficiency.",
+      "speech_style": "assertive, pragmatic, impatient",
+      "motivation": "needs weapons, ammo, and upgrades"
+    },
+    {
+      "id": "sniper_specialist",
+      "name": "Sniper Specialist",
+      "description": "A long-range marksman.",
+      "speech_style": "quiet, deliberate, observant",
+      "motivation": "looks for sniper rifles and scopes"
+    },
+    {
+      "id": "adrenaline_junkie",
+      "name": "Adrenaline Junkie",
+      "description": "A thrill-seeker diving into danger.",
+      "speech_style": "energetic, impulsive, excited",
+      "motivation": "wants high-damage weapons and boosters"
+    },
+    {
+      "id": "militia_leader",
+      "name": "Militia Leader",
+      "description": "A commander organizing resistance forces.",
+      "speech_style": "authoritative, strategic, commanding",
+      "motivation": "needs bulk ammo and reliable rifles"
+    },
+    {
+      "id": "corporate_security_agent",
+      "name": "Corporate Security Agent",
+      "description": "A professional operative for a private firm.",
+      "speech_style": "formal, efficient, businesslike",
+      "motivation": "seeks silencers and tactical upgrades"
+    },
+    {
+      "id": "lone_wanderer",
+      "name": "Lone Wanderer",
+      "description": "A solitary traveler crossing dangerous territories.",
+      "speech_style": "reserved, practical, minimalistic",
+      "motivation": "needs dependable gear and ammo"
+    },
+    {
+      "id": "bounty_hunter",
+      "name": "Bounty Hunter",
+      "description": "A tracker who hunts dangerous targets.",
+      "speech_style": "cold, focused, professional",
+      "motivation": "needs precision weapons and tracking gear"
+    },
+    {
+      "id": "riot_police_officer",
+      "name": "Riot Police Officer",
+      "description": "A law enforcement specialist in urban conflict.",
+      "speech_style": "firm, controlled, authoritative",
+      "motivation": "needs non-lethal gear and ammo"
+    },
+    {
+      "id": "ex_special_forces",
+      "name": "Ex-Special Forces",
+      "description": "A retired elite operative.",
+      "speech_style": "calm, efficient, tactical",
+      "motivation": "seeks high-end weapons and upgrades"
+    },
+    {
+      "id": "smuggler",
+      "name": "Smuggler",
+      "description": "A transporter of illegal goods.",
+      "speech_style": "smooth, evasive, persuasive",
+      "motivation": "needs compact weapons and silencers"
+    },
+    {
+      "id": "survivalist",
+      "name": "Survivalist",
+      "description": "A self-reliant prepper living off the grid.",
+      "speech_style": "practical, paranoid, blunt",
+      "motivation": "needs ammo, meds, and durable weapons"
+    },
+    {
+      "id": "combat_engineer",
+      "name": "Combat Engineer",
+      "description": "A specialist in explosives and mechanics.",
+      "speech_style": "technical, confident, methodical",
+      "motivation": "seeks weapon upgrades and heavy ammo"
+    },
+    {
+      "id": "gang_member",
+      "name": "Gang Member",
+      "description": "A street-level criminal.",
+      "speech_style": "aggressive, slang-heavy, bold",
+      "motivation": "wants cheap weapons and ammo"
+    },
+    {
+      "id": "gang_leader",
+      "name": "Gang Leader",
+      "description": "A crime boss controlling territory.",
+      "speech_style": "dominant, threatening, confident",
+      "motivation": "needs bulk weapons and upgrades"
+    },
+    {
+      "id": "ex_cop",
+      "name": "Ex-Cop",
+      "description": "A former police officer.",
+      "speech_style": "stern, weary, straightforward",
+      "motivation": "seeks reliable sidearms and ammo"
+    },
+    {
+      "id": "paramedic",
+      "name": "Paramedic",
+      "description": "A civilian medical responder.",
+      "speech_style": "urgent, caring, focused",
+      "motivation": "needs healing items and emergency kits"
+    },
+    {
+      "id": "research_scientist",
+      "name": "Research Scientist",
+      "description": "A specialist studying anomalies or pathogens.",
+      "speech_style": "curious, analytical, distracted",
+      "motivation": "needs antidotes and protective gear"
+    },
+    {
+      "id": "military_recruit",
+      "name": "Military Recruit",
+      "description": "A new soldier in training.",
+      "speech_style": "eager, respectful, unsure",
+      "motivation": "needs basic weapons and ammo"
+    },
+    {
+      "id": "weapons_collector",
+      "name": "Weapons Collector",
+      "description": "A hobbyist obsessed with firearms.",
+      "speech_style": "enthusiastic, nerdy, talkative",
+      "motivation": "seeks rare weapons and upgrades"
+    },
+    {
+      "id": "combat_pilot",
+      "name": "Combat Pilot",
+      "description": "A military aviator.",
+      "speech_style": "cool-headed, precise, disciplined",
+      "motivation": "needs sidearms and emergency kits"
+    },
+    {
+      "id": "bodyguard",
+      "name": "Bodyguard",
+      "description": "A protector of high-value clients.",
+      "speech_style": "professional, alert, concise",
+      "motivation": "needs reliable weapons and silencers"
+    },
+    {
+      "id": "ex_convict",
+      "name": "Ex-Convict",
+      "description": "A recently released prisoner.",
+      "speech_style": "rough, defensive, cautious",
+      "motivation": "needs basic protection gear"
+    },
+    {
+      "id": "hunter",
+      "name": "Hunter",
+      "description": "A skilled marksman tracking wildlife.",
+      "speech_style": "calm, practical, observant",
+      "motivation": "needs rifles and scopes"
+    },
+    {
+      "id": "radio_operator",
+      "name": "Radio Operator",
+      "description": "A communications specialist.",
+      "speech_style": "precise, technical, monotone",
+      "motivation": "needs sidearms and emergency meds"
+    },
+    {
+      "id": "urban_explorer",
+      "name": "Urban Explorer",
+      "description": "A thrill-seeker exploring abandoned buildings.",
+      "speech_style": "curious, excited, informal",
+      "motivation": "needs light weapons and first aid"
+    },
+    {
+      "id": "riot_survivor",
+      "name": "Riot Survivor",
+      "description": "A civilian caught in violent unrest.",
+      "speech_style": "shaken, desperate, fast-paced",
+      "motivation": "needs ammo and healing items"
+    },
+    {
+      "id": "security_guard",
+      "name": "Security Guard",
+      "description": "A private security employee.",
+      "speech_style": "professional, cautious, firm",
+      "motivation": "needs sidearms and ammo"
+    },
+    {
+      "id": "park_ranger",
+      "name": "Park Ranger",
+      "description": "A wilderness patrol officer.",
+      "speech_style": "calm, authoritative, grounded",
+      "motivation": "needs rifles and medical kits"
+    },
+    {
+      "id": "deserter",
+      "name": "Deserter",
+      "description": "A runaway soldier avoiding capture.",
+      "speech_style": "paranoid, tense, quiet",
+      "motivation": "needs weapons and disguises"
+    },
+    {
+      "id": "freedom_fighter",
+      "name": "Freedom Fighter",
+      "description": "A rebel fighting against oppression.",
+      "speech_style": "determined, passionate, intense",
+      "motivation": "needs rifles, ammo, and healing items"
+    },
+    {
+      "id": "street_informant",
+      "name": "Street Informant",
+      "description": "A low-level spy gathering intel.",
+      "speech_style": "whispery, evasive, cautious",
+      "motivation": "needs compact weapons and silencers"
+    },
+    {
+      "id": "combat_medic",
+      "name": "Combat Medic",
+      "description": "A frontline healer.",
+      "speech_style": "urgent, decisive, focused",
+      "motivation": "needs medkits and revive kits"
+    },
+    {
+      "id": "hazmat_specialist",
+      "name": "Hazmat Specialist",
+      "description": "A technician handling hazardous materials.",
+      "speech_style": "technical, calm, methodical",
+      "motivation": "needs antidotes and protective meds"
+    },
+    {
+      "id": "ex_biologist",
+      "name": "Ex-Biologist",
+      "description": "A scientist turned survivor.",
+      "speech_style": "curious, anxious, analytical",
+      "motivation": "needs antidotes and healing items"
+    },
+    {
+      "id": "riot_looter",
+      "name": "Riot Looter",
+      "description": "A desperate civilian taking advantage of chaos.",
+      "speech_style": "aggressive, frantic, impulsive",
+      "motivation": "needs cheap weapons and ammo"
+    },
+    {
+      "id": "tactical_instructor",
+      "name": "Tactical Instructor",
+      "description": "A trainer teaching combat skills.",
+      "speech_style": "strict, confident, commanding",
+      "motivation": "needs demonstration weapons and upgrades"
+    },
+    {
+      "id": "covert_agent",
+      "name": "Covert Agent",
+      "description": "An undercover operative.",
+      "speech_style": "calm, coded, subtle",
+      "motivation": "needs silencers and compact weapons"
+    },
+    {
+      "id": "military_mechanic",
+      "name": "Military Mechanic",
+      "description": "A technician maintaining vehicles and weapons.",
+      "speech_style": "practical, blunt, technical",
+      "motivation": "needs weapon parts and upgrades"
+    },
+    {
+      "id": "radio_scientist",
+      "name": "Radio Scientist",
+      "description": "A researcher studying communication tech.",
+      "speech_style": "distracted, curious, technical",
+      "motivation": "needs sidearms and emergency meds"
+    },
+    {
+      "id": "urban_sniper",
+      "name": "Urban Sniper",
+      "description": "A marksman operating in city environments.",
+      "speech_style": "quiet, precise, patient",
+      "motivation": "needs sniper rifles and thermal scopes"
+    },
+    {
+      "id": "street_doc",
+      "name": "Street Doc",
+      "description": "An underground medic treating wounded survivors.",
+      "speech_style": "calm, gritty, experienced",
+      "motivation": "needs medkits and regeneration serums"
+    },
+    {
+      "id": "weaponsmith",
+      "name": "Weaponsmith",
+      "description": "A craftsman specializing in firearm repair.",
+      "speech_style": "technical, proud, detail-oriented",
+      "motivation": "needs weapon parts and upgrade kits"
+    },
+    {
+      "id": "ex_spy",
+      "name": "Ex-Spy",
+      "description": "A retired intelligence operative.",
+      "speech_style": "smooth, cryptic, controlled",
+      "motivation": "needs silencers and compact weapons"
+    },
+    {
+      "id": "border_patrol_officer",
+      "name": "Border Patrol Officer",
+      "description": "A guard stationed at a dangerous frontier.",
+      "speech_style": "firm, alert, disciplined",
+      "motivation": "needs rifles, ammo, and medkits"
+    }
+  ],
+  "params": {
+    "<weapon>": [
+      "pistol",
+      "shotgun",
+      "rifle",
+      "SMG",
+      "sniper_rifle",
+      "rocket_launcher"
+    ],
+    "<upgrade>": [
+      "scope",
+      "extended_magazine",
+      "silencer",
+      "laser_sight",
+      "grip",
+      "recoil_reducer",
+      "quick_reload_kit",
+      "damage_booster",
+      "thermal_scope",
+      "stability_mod",
+      "barrel_upgrade",
+      "trigger_upgrade",
+      "camouflage_skin"
+    ],
+    "<medical_item>": [
+      "bandage",
+      "medkit",
+      "antidote",
+      "adrenaline_shot",
+      "regeneration_serum",
+      "painkillers",
+      "revive_kit"
+    ]
+  }
+}
