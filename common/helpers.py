@@ -176,7 +176,7 @@ class PromptBuilder:
 def save_questions_to_jsonl(
     questions: Set[Question],
     output_file: str,
-    append: bool = True
+    append: bool = False
 ) -> None:
     path = Path(output_file)
     mode = "a" if append else "w"
@@ -193,7 +193,7 @@ def save_questions_to_jsonl(
 def save_dataclass_records_to_jsonl(
     records: List[Any],
     output_file: str,
-    append: bool = True
+    append: bool = False
 ) -> None:
     path = Path(output_file)
     mode = "a" if append else "w"
@@ -205,7 +205,7 @@ def save_dataclass_records_to_jsonl(
 def save_dict_records_to_jsonl(
     records: List[dict],
     output_file: str,
-    append: bool = True
+    append: bool = False
 ) -> None:
     path = Path(output_file)
     mode = "a" if append else "w"

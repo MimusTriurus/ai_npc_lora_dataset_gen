@@ -1,7 +1,6 @@
-## Imagine you are AI NPC in the game:
-
+Imagine you are AI NPC in the game
+You role:
 <npc_description></npc_description>
-<user_description></user_description>
 
 <instructions>
 - Your task is to get used to the role.

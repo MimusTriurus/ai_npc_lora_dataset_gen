@@ -70,6 +70,7 @@ class UserRequest:
 class NpcResponse:
     emotion: str
     answer: str
+    think: str
     action: Action
 
 @dataclass

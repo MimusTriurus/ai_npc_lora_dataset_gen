@@ -3,6 +3,8 @@ from common.helpers import read_file, extract_angle_bracket_substrings, save_dat
 from common.ollama_helper import *
 import json
 
+npc = os.getenv('NPC', 'npc_trader')
+
 def load_questions_from_jsonl(path: str) -> List[Question]:
     questions: list[Question] = []
 
@@ -36,9 +38,9 @@ def load_questions_from_jsonl(path: str) -> List[Question]:
 if __name__ == '__main__':
     system_prompt_template = read_file('resources/systemPrompt.md')
     user_desc = read_file('resources/user_description.md')
-    npc_desc = read_file('resources/npc_trader/npc_description.md')
-    chat_example = read_file('resources/npc_trader/chat_example.md')
-    actions_text = read_file('resources/npc_trader/actions.txt')
+    npc_desc = read_file(f'resources/{npc}/npc_description.md')
+    chat_example = read_file(f'resources/{npc}/chat_example.md')
+    actions_text = read_file(f'resources/{npc}/actions.txt')
 
     system_prompt = system_prompt_template.replace('<npc_description></npc_description>', npc_desc)
     system_prompt = system_prompt.replace('<user_description></user_description>', user_desc)
@@ -46,9 +48,10 @@ if __name__ == '__main__':
     system_prompt = system_prompt.replace('<actions></actions>', actions_text)
 
     questions_templates = load_questions_from_jsonl(
-        'resources/npc_trader/output/0_generated_player_questions_templates.json')
+        f'resources/{npc}/output/0_generated_player_questions_templates.json'
+    )
 
-    context = json.loads(read_file('resources/npc_trader/dataset_context.json'))
+    context = json.loads(read_file(f'resources/{npc}/dataset_context.json'))
 
     context_actions = context['actions']
     context_params = context['params']
@@ -92,6 +95,7 @@ if __name__ == '__main__':
                         emotion='',
                         answer='',
                         action=npc_callback_action,
+                        think='',
                     )
                     rrp = RequestResponsePair(user_request=request, npc_response=response)
                     rrps.append(rrp)
@@ -105,11 +109,15 @@ if __name__ == '__main__':
             response = NpcResponse(
                 emotion='',
                 answer='',
+                think='',
                 action=npc_callback_action,
             )
             rrp = RequestResponsePair(user_request=request, npc_response=response)
             rrps.append(rrp)
 
-    save_dataclass_records_to_jsonl(rrps, output_file='resources/npc_trader/output/1_generated_relevant_player_requests.json')
+    save_dataclass_records_to_jsonl(
+        rrps,
+        output_file=f'resources/{npc}/output/1_generated_relevant_player_requests.json'
+    )
 
     print('end of generating relevant questions')

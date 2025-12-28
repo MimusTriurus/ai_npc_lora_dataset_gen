@@ -5,6 +5,7 @@ from common.data_classes import UserRequest, Action, RequestResponsePair, NpcRes
 from common.helpers import read_file, save_dataclass_records_to_jsonl
 from common.ollama_helper import *
 
+npc = os.getenv('NPC', 'npc_trader')
 
 def make_negative_prompt(npc_description: str, records_count: int) -> str:
     prompt = f'''
@@ -36,7 +37,7 @@ def extract_dialogue_lines(text: str) -> Set[str]:
 
 if __name__ == '__main__':
     QUESTIONS_PER_ITERATION = 100
-    npc_desc = read_file('resources/npc_trader/npc_description.md')
+    npc_desc = read_file(f'resources/{npc}/npc_description.md')
     helper = OllamaHelper(OLLAMA_HOST)
     prompt = make_negative_prompt(npc_desc, QUESTIONS_PER_ITERATION)
 
@@ -66,6 +67,6 @@ if __name__ == '__main__':
 
         rrps.append(rrp)
 
-    save_dataclass_records_to_jsonl(rrps, output_file='resources/npc_trader/output/2_generated_irrelevant_player_requests.json')
+    save_dataclass_records_to_jsonl(rrps, output_file=f'resources/{npc}/output/2_generated_irrelevant_player_requests.json')
 
     print('end of generating irrelevant questions')

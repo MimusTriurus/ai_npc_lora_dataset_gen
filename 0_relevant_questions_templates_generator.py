@@ -5,8 +5,9 @@ from common.helpers import read_file, save_questions_to_jsonl
 from common.ollama_helper import *
 import json
 
+npc = os.getenv('NPC', 'npc_trader')
+
 def build_system_prompt(base_system_prompt: str, character: dict) -> str:
-    # Build formatted character description block
     character_block = (
         f"Name: {character.get('name')}\n"
         f"Role ID: {character.get('id')}\n"
@@ -15,7 +16,6 @@ def build_system_prompt(base_system_prompt: str, character: dict) -> str:
         f"Motivation: {character.get('motivation')}"
     )
 
-    # Insert into system prompt
     updated_prompt = base_system_prompt.replace(
         "<character_description></character_description>",
         f"<character_description>\n{character_block}\n</character_description>"
@@ -26,9 +26,8 @@ def build_system_prompt(base_system_prompt: str, character: dict) -> str:
 input_data = 'player_questions'
 #input_data = 'npc_answers'
 
-
 if __name__ == '__main__':
-    generation_questions = json.loads(read_file(f"resources/npc_trader/dataset_{input_data}_configuration.json"))
+    generation_questions = json.loads(read_file(f"resources/{npc}/dataset_{input_data}_configuration.json"))
     helper = OllamaHelper(OLLAMA_HOST)
     questions_templates: Set[Question] = set()
     for qt in generation_questions['questions_templates']:
@@ -76,5 +75,5 @@ if __name__ == '__main__':
             #break
         #break
 
-    save_questions_to_jsonl(questions_templates, f"resources/npc_trader/output/0_generated_{input_data}_templates.json")
-    print('end')
+    save_questions_to_jsonl(questions_templates, f"resources/{npc}/output/0_generated_{input_data}_templates.json")
+    print('=== end ===')
