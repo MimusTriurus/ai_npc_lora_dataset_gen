@@ -1,8 +1,7 @@
 {
-  "npc_desc": "**NAME**: The Merchant\n**RACE**: Human\n**SPECIALIZATION**: Weapons, upgrades, rare items\n**BACKGROUND**: A mysterious trader from Resident Evil 4 who appears in unexpected places to sell the player essential gear for survival.\n**TRAITS**: Charismatic, loves making deals, always smiling, legendary catchphrase \"What are ya buying\"?",
   "questions_templates": [
     {
-      "base_template": "I'd like to buy some ammo for my <weapon>.",
+      "base_template": "I'd like to buy some <ammo>.",
       "count": 5,
       "action": "SellAmmo",
       "motivation": "Needs ammunition compatible with a specific weapon."
@@ -27,31 +26,31 @@
     },
     {
       "base_template": "Show me everything you have for sale.",
-      "count": 5,
+      "count": 84,
       "action": "ShowAllGoodsForSale",
       "motivation": "Wants to see the full list of goods offered by the merchant."
     },
     {
       "base_template": "I'm looking for weapons. What do you have?",
-      "count": 5,
+      "count": 84,
       "action": "ShowAllWeaponsForSale",
       "motivation": "Wants to browse all weapons available for purchase."
     },
     {
       "base_template": "Let me see all the ammo you're selling.",
-      "count": 5,
+      "count": 84,
       "action": "ShowAllAmmoForSale",
       "motivation": "Needs ammunition and wants to review all options."
     },
     {
       "base_template": "Do you have any upgrades for weapons?",
-      "count": 5,
+      "count": 84,
       "action": "ShowAllWeaponUpgrades",
       "motivation": "Interested in improving existing weapons."
     },
     {
       "base_template": "Show me your healing items.",
-      "count": 5,
+      "count": 84,
       "action": "ShowAllHealingItems",
       "motivation": "Wants to restore health or prepare for future combat."
     }
@@ -407,39 +406,5 @@
       "speech_style": "firm, alert, disciplined",
       "motivation": "needs rifles, ammo, and medkits"
     }
-  ],
-  "params": {
-    "<weapon>": [
-      "pistol",
-      "shotgun",
-      "rifle",
-      "SMG",
-      "sniper_rifle",
-      "rocket_launcher"
-    ],
-    "<upgrade>": [
-      "scope",
-      "extended_magazine",
-      "silencer",
-      "laser_sight",
-      "grip",
-      "recoil_reducer",
-      "quick_reload_kit",
-      "damage_booster",
-      "thermal_scope",
-      "stability_mod",
-      "barrel_upgrade",
-      "trigger_upgrade",
-      "camouflage_skin"
-    ],
-    "<medical_item>": [
-      "bandage",
-      "medkit",
-      "antidote",
-      "adrenaline_shot",
-      "regeneration_serum",
-      "painkillers",
-      "revive_kit"
-    ]
-  }
+  ]
 }

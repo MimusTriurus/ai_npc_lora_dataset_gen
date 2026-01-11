@@ -1,9 +1,41 @@
 from common.data_classes import Question, UserRequest, Action, NpcResponse, RequestResponsePair
-from common.helpers import read_file, extract_angle_bracket_substrings, save_dataclass_records_to_jsonl
+from common.helpers import read_file, extract_angle_bracket_substrings, save_dataclass_records_to_jsonl, list_files
 from common.ollama_helper import *
 import json
+import re
+import random
+import os
 
 npc = os.getenv('NPC', 'npc_trader')
+
+def fill_ranges(text: str) -> str:
+    if "[" not in text or "]" not in text:
+        return text
+
+    def replace(match):
+        low, high = map(int, match.group(1).split('-'))
+        return str(random.randint(low, high))
+
+    return re.sub(r"\[(\d+-\d+)\]", replace, text)
+
+def fill_template(template: str, inputs: list[str]) -> str:
+    match = re.search(r"\{(.*)\}", template)
+    if not match:
+        return template
+
+    block = match.group(1)
+
+    items = []
+    for value in inputs:
+        filled = re.sub(r"<[^>]+>", value, block)
+        filled = fill_ranges(filled)
+        items.append(f'\n - {filled}')
+
+    filled_block = "".join(items)
+
+    result = re.sub(r"\{.*\}", filled_block, template)
+
+    return result
 
 def load_questions_from_jsonl(path: str) -> List[Question]:
     questions: list[Question] = []
@@ -35,60 +67,80 @@ def load_questions_from_jsonl(path: str) -> List[Question]:
 
     return questions
 
+def load_questions_from_directory(path: str) -> list[Question]:
+    questions: list[Question] = []
+    file_paths = list_files(path)
+    for file_path in file_paths:
+        part = load_questions_from_jsonl(file_path)
+        questions.extend(part)
+    return questions
+
+def make_context_from_template(context_template: str, context_params: dict) -> str:
+    arg = extract_angle_bracket_substrings(context_template)
+    if arg:
+        params  = context_params.get(arg[0])
+        context = fill_template(context_template, params)
+        return context
+    return context_template
+
 if __name__ == '__main__':
-    system_prompt_template = read_file('resources/systemPrompt.md')
-    user_desc = read_file('resources/user_description.md')
-    npc_desc = read_file(f'resources/{npc}/npc_description.md')
-    chat_example = read_file(f'resources/{npc}/chat_example.md')
-    actions_text = read_file(f'resources/{npc}/actions.txt')
-
-    system_prompt = system_prompt_template.replace('<npc_description></npc_description>', npc_desc)
-    system_prompt = system_prompt.replace('<user_description></user_description>', user_desc)
-    system_prompt = system_prompt.replace('<chat_example></chat_example>', chat_example)
-    system_prompt = system_prompt.replace('<actions></actions>', actions_text)
-
-    questions_templates = load_questions_from_jsonl(
-        f'resources/{npc}/output/0_generated_player_questions_templates.json'
+    questions_templates = load_questions_from_directory(
+        f'resources/{npc}/output/0_request_templates'
     )
 
-    context = json.loads(read_file(f'resources/{npc}/dataset_context.json'))
+    context_templates = json.loads(read_file(f'resources/{npc}/dataset_context.json'))
 
-    context_actions = context['actions']
-    context_params = context['params']
-
-    rrps = list()
+    context_actions = context_templates['actions']
+    context_params: dict = context_templates['params']
 
     for question_template in questions_templates:
-        if not question_template.template:
+        if not question_template.template or not question_template.action or not question_template.motivation:
             continue
-        if question_template.action in context_actions:
+
+        action_data = context_actions.get(question_template.action)
+
+        if action_data:
             question_template_str = question_template.template
             user_motivation = question_template.motivation
-            extracted_args = extract_angle_bracket_substrings(question_template_str)
-            if len(extracted_args) > 1 or len(extracted_args) == 0:
-                continue
-            extracted_arg = extracted_args[0]
-            if extracted_arg not in context_params:
-                continue
 
-            extracted_params = context_params[extracted_arg]
-
-            action_data = context_actions[question_template.action]
             actions_contexts = action_data['actions_contexts']
 
-            for parameter in extracted_params:
-                user_request = question_template.template.replace(extracted_arg, parameter)
-                for action_context in actions_contexts:
-                    context = action_context['context']
-                    request_context = context.replace(extracted_arg, parameter)
+            for action_context_template in actions_contexts:
+                action_context = make_context_from_template(
+                    action_context_template['context'],
+                    context_params
+                )
 
-                    npc_callback_action = Action.parse_action(action_context['action'])
+                rrps = list()
+
+                action_template = Action.parse_action(action_context_template['action'])
+                action_template_arg = action_template.parameters[0] if len(action_template.parameters) > 0 else None
+                if not action_template_arg:
+                    print(f"==> Error. Action {action_context['action']} has no parameters!!!")
+                    continue
+                args: List[str] = context_params.get(action_template_arg, [])
+                if not args:
+                    args = [action_template_arg]
+
+                for arg in args:
+                    user_request = question_template.template.replace(action_template_arg, arg)
+
+                    state_of_user = action_context_template['state_of_user']
+
+                    context_template = fill_ranges(action_context)
+                    state_of_user = fill_ranges(state_of_user)
+
+                    state_of_user = state_of_user.replace(action_template_arg, arg)
+                    context_templates = context_template.replace(action_template_arg, arg)
+
+                    action_template = Action.parse_action(action_context_template['action'])
+                    npc_callback_action = action_template
                     for i in range(len(npc_callback_action.parameters)):
-                        if npc_callback_action.parameters[i] == extracted_arg:
-                            npc_callback_action.parameters[i] = parameter
+                        if npc_callback_action.parameters[i] == action_template_arg:
+                            npc_callback_action.parameters[i] = arg
                     request = UserRequest(
-                        context=user_motivation,
-                        state_of_user=request_context,
+                        context=context_templates,
+                        state_of_user=state_of_user,
                         request_of_user=user_request,
                     )
                     response = NpcResponse(
@@ -99,25 +151,11 @@ if __name__ == '__main__':
                     )
                     rrp = RequestResponsePair(user_request=request, npc_response=response)
                     rrps.append(rrp)
-        else:
-            npc_callback_action = Action.parse_action(question_template.action)
-            request = UserRequest(
-                context=question_template.motivation,
-                state_of_user=question_template.motivation,
-                request_of_user=question_template.template,
-            )
-            response = NpcResponse(
-                emotion='',
-                answer='',
-                think='',
-                action=npc_callback_action,
-            )
-            rrp = RequestResponsePair(user_request=request, npc_response=response)
-            rrps.append(rrp)
 
-    save_dataclass_records_to_jsonl(
-        rrps,
-        output_file=f'resources/{npc}/output/1_generated_relevant_player_requests.json'
-    )
+                    save_dataclass_records_to_jsonl(
+                        rrps,
+                        output_file=f'resources/{npc}/output/1_requests/{npc_callback_action.name}.json',
+                        append=True
+                    )
 
     print('end of generating relevant questions')

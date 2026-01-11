@@ -3,16 +3,19 @@
     "SellAmmo": {
       "actions_contexts": [
         {
-          "context": "User can buy the ammo for the <weapon>. He have enough gold.",
-          "action": "SellAmmo(<weapon>)"
+          "context": "Item: <ammo>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SellItem(<ammo>)"
         },
         {
-          "context": "User can't buy the ammo for the <weapon>. He doesn't have enough gold.",
-          "action": "NotEnoughGoldForBuy()"
+          "context": "Item: <ammo>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [0-49] gold.",
+          "action": "NotEnoughGoldForBuy(<ammo>)"
         },
         {
-          "context": "Trader don't have the ammo for the <weapon> for sale. It's sold out.",
-          "action": "SoldOut()"
+          "context": "Item: <ammo>. Price: [50-250] gold. Amount: 0",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SoldOut(<ammo>)"
         }
       ]
     },
@@ -20,16 +23,19 @@
     "SellWeapon": {
       "actions_contexts": [
         {
-          "context": "User can buy the <weapon>. He have enough gold.",
-          "action": "SellWeapon(<weapon>)"
+          "context": "Item: <weapon>. Price: [500-1000] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SellItem(<weapon>)"
         },
         {
-          "context": "User can't buy the <weapon>. He doesn't have enough gold.",
-          "action": "NotEnoughGoldForBuy()"
+          "context": "Item: <weapon>. Price: [500-1000] gold. Amount: [1-10]",
+          "state_of_user": "User has [0-499] gold.",
+          "action": "NotEnoughGoldForBuy(<weapon>)"
         },
         {
-          "context": "Trader don't have the <weapon> for sale. It's sold out.",
-          "action": "SoldOut()"
+          "context": "Item: <weapon>. Price: [500-1000] gold. Amount: 0",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SoldOut(<weapon>)"
         }
       ]
     },
@@ -37,16 +43,19 @@
     "SellWeaponUpgrade": {
       "actions_contexts": [
         {
-          "context": "User can buy the <upgrade> for his weapon. He have enough gold.",
-          "action": "SellWeaponUpgrade(<upgrade>)"
+          "context": "Item: <upgrade>. Price: [250-500] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SellItem(<upgrade>)"
         },
         {
-          "context": "User can't buy the <upgrade> for his weapon. He doesn't have enough gold.",
-          "action": "NotEnoughGoldForBuy()"
+          "context": "Item: <upgrade>. Price: [250-500] gold. Amount: [1-10]",
+          "state_of_user": "User has [0-249] gold.",
+          "action": "NotEnoughGoldForBuy(<upgrade>)"
         },
         {
-          "context": "Trader don't have the <upgrade> for sale. It's sold out.",
-          "action": "SoldOut()"
+          "context": "Item: <upgrade>. Price: [250-500] gold. Amount: 0",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SoldOut(<upgrade>)"
         }
       ]
     },
@@ -54,22 +63,82 @@
     "SellHealingItem": {
       "actions_contexts": [
         {
-          "context": "User can buy the <medical_item>. He have enough gold.",
-          "action": "SellHealingItem(<medical_item>)"
+          "context": "Item: <medical_item>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SellItem(<medical_item>)"
         },
         {
-          "context": "User can't buy the <medical_item>. He doesn't have enough gold.",
-          "action": "NotEnoughGoldForBuy()"
+          "context": "Item: <medical_item>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [0-49] gold.",
+          "action": "NotEnoughGoldForBuy(<medical_item>)"
         },
         {
-          "context": "Trader don't have the <medical_item>. It's sold out.",
-          "action": "SoldOut()"
+          "context": "Item: <medical_item>. Price: [50-250] gold. Amount: 0",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "SoldOut(<medical_item>)"
+        }
+      ]
+    },
+
+    "ShowAllWeaponsForSale": {
+      "actions_contexts": [
+        {
+          "context": "Trader's assortment: {Item: <weapon>. Price: [500-1000] gold}",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItems(weapon)"
+        }
+      ]
+    },
+
+
+    "ShowAllAmmoForSale": {
+      "actions_contexts": [
+        {
+          "context": "Trader's assortment: {Item: <ammo>. Price: [50-250] gold}",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItems(ammo)"
+        }
+      ]
+    },
+
+    "ShowAllWeaponUpgrades": {
+      "actions_contexts": [
+        {
+          "context": "Trader's assortment: {Item: <upgrade>. Price: [250-500] gold}",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItems(upgrade)"
+        }
+      ]
+    },
+
+    "ShowAllHealingItems": {
+      "actions_contexts": [
+        {
+          "context": "Trader's assortment: {Item: <medical_item>. Price: [50-250] gold}",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItems(medical_item)"
+        }
+      ]
+    },
+
+    "ShowAllGoodsForSale": {
+      "actions_contexts": [
+        {
+          "context": "Trader's assortment: {<all>}",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItems(all)"
         }
       ]
     }
   },
 
   "params": {
+    "<all>": [
+      "weapons",
+      "ammo",
+      "weapon upgrades",
+      "medications"
+    ],
     "<weapon>": [
       "pistol",
       "shotgun",
@@ -78,27 +147,27 @@
       "sniper_rifle",
       "rocket_launcher"
     ],
+    "<ammo>": [
+      "pistol's ammo",
+      "shotgun's ammo",
+      "rifle's ammo",
+      "SMG's ammo",
+      "sniper_rifle's ammo",
+      "rocket_launcher's ammo"
+    ],
     "<upgrade>": [
       "scope",
       "extended_magazine",
       "silencer",
       "laser_sight",
       "grip",
-      "recoil_reducer",
-      "quick_reload_kit",
-      "damage_booster",
-      "thermal_scope",
-      "stability_mod",
-      "barrel_upgrade",
-      "trigger_upgrade",
-      "camouflage_skin"
+      "recoil_reducer"
     ],
     "<medical_item>": [
       "bandage",
       "medkit",
       "antidote",
       "adrenaline_shot",
-      "regeneration_serum",
       "painkillers",
       "revive_kit"
     ]

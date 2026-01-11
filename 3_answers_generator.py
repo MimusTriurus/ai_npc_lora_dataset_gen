@@ -1,6 +1,8 @@
 import random
 import re
 
+from numpy.f2py.auxfuncs import throw_error
+
 from common.data_classes import (
     Action,
     NpcResponse,
@@ -9,14 +11,14 @@ from common.data_classes import (
 from common.helpers import (
     read_file,
     save_dataclass_records_to_jsonl,
-    load_jsonl_to_dataclasses
+    load_jsonl_to_dataclasses, list_files
 )
 from common.ollama_helper import *
 import json
 
 npc = os.getenv('NPC', 'npc_trader')
-relevant_limit = os.getenv('relevant_limit', 99999)
-irrelevant_limit = os.getenv('irrelevant_limit', 99999)
+relevant_limit = int(os.getenv('RELEVANT_LIMIT', 99999))
+irrelevant_limit = int(os.getenv('IRRELEVANT_LIMIT', 99999))
 
 def generate_answers(
         sp_f_path: str,
@@ -41,20 +43,28 @@ def generate_answers(
         rr_f_path,
         RequestResponsePair
     )
-
     random.shuffle(rrps)
     min_size = min(len(rrps), limit)
     rrps = rrps[:min_size]
 
     for i in (range(len(rrps))):
+        valid_action_dict = rrps[i].npc_response['action']
+        valid_action = Action(
+                    name=valid_action_dict['name'],
+                    parameters=valid_action_dict['parameters'],
+                )
+
         json_request = json.dumps(rrps[i].user_request)
         new_system_prompt = build_prompt(system_prompt, json_request)
         response, think = helper.generate(MODEL, new_system_prompt)
 
-        think = think.replace('\n', ' ')
+        if think is not None:
+            think = think.replace('\n', ' ')
+            think = re.sub(r"[^\x00-\x7F]", " ", think)
+            think = think.rstrip().lstrip().lstrip()
+        else:
+            think = ''
 
-        think = re.sub(r"[^\x00-\x7F]", " ", think)
-        think = think.rstrip().lstrip().lstrip()
         response = re.sub(r"[^\x00-\x7F]", " ", response)
         response = response.replace('</think>', '').replace('<think>', '')
         response = response.rstrip().lstrip()
@@ -75,6 +85,10 @@ def generate_answers(
                     name=action_dict['name'],
                     parameters=action_dict['parameters'],
                 )
+
+                if action != valid_action:
+                    raise Exception(f"Invalid action: {action} != {valid_action}!!!")
+
         except Exception as e:
             print(f'--> Skip. Error: {e}\n request: {json_request}\n response:\n{response}')
             action = None
@@ -84,7 +98,7 @@ def generate_answers(
         #break
 
         if action is not None and answer is not None and emotion is not None:
-            print(f'=== [{i}/{len(rrps) - 1}] ===')
+            print(f'=== {action.name} [{i}/{len(rrps) - 1}] ===')
             rrps[i].npc_response = NpcResponse(
                 answer=answer,
                 emotion=emotion,
@@ -96,21 +110,31 @@ def generate_answers(
 
 if __name__ == '__main__':
     print(f'=== Generate relevant answers ===')
-    relevant_case = generate_answers(
-        'resources/systemPrompt.md',
-        f'resources/{npc}/chat_example.md',
-        f'resources/{npc}/output/1_generated_relevant_player_requests.json',
-        relevant_limit
-    )
-    save_dataclass_records_to_jsonl(relevant_case, output_file=f'resources/{npc}/output/3_generated_relevant_requests_responses.json')
+    relevant_requests_f_paths = list_files(f'resources/{npc}/output/1_requests')
+    for f_path in relevant_requests_f_paths:
+        print(f'=== {f_path} ===')
+        relevant_cases = generate_answers(
+            'resources/systemPrompt.md',
+            f'resources/{npc}/chat_example.md',
+            f_path,
+            relevant_limit
+        )
+        filename = os.path.basename(f_path)
+        save_dataclass_records_to_jsonl(relevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
+
+    print('\n')
 
     print(f'=== Generate irrelevant answers ===')
-    irrelevant_case = generate_answers(
-        'resources/systemPrompt_irrelevant_case.md',
-        'resources/chat_example_irrelevant_case.md',
-        f'resources/{npc}/output/2_generated_irrelevant_player_requests.json',
-        irrelevant_limit
-    )
-    save_dataclass_records_to_jsonl(irrelevant_case, output_file=f'resources/{npc}/output/3_generated_irrelevant_requests_responses.json')
+    irrelevant_requests_f_paths = list_files(f'resources/{npc}/output/2_irrelevant_requests')
+    for f_path in irrelevant_requests_f_paths:
+        print(f'=== {f_path} ===')
+        irrelevant_cases = generate_answers(
+            'resources/systemPrompt_irrelevant_case.md',
+            'resources/chat_example_irrelevant_case.md',
+            f_path,
+            irrelevant_limit
+        )
+        filename = os.path.basename(f_path)
+        save_dataclass_records_to_jsonl(irrelevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
 
     print('=== end ===')

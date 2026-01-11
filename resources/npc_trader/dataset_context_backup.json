@@ -1,0 +1,106 @@
+{
+  "actions": {
+    "SellAmmo": {
+      "actions_contexts": [
+        {
+          "context": "User can buy the ammo for the <weapon>. He have enough gold.",
+          "action": "SellAmmo(<weapon>)"
+        },
+        {
+          "context": "User can't buy the ammo for the <weapon>. He doesn't have enough gold.",
+          "action": "NotEnoughGoldForBuy()"
+        },
+        {
+          "context": "Trader don't have the ammo for the <weapon> for sale. It's sold out.",
+          "action": "SoldOut()"
+        }
+      ]
+    },
+
+    "SellWeapon": {
+      "actions_contexts": [
+        {
+          "context": "User can buy the <weapon>. He have enough gold.",
+          "action": "SellWeapon(<weapon>)"
+        },
+        {
+          "context": "User can't buy the <weapon>. He doesn't have enough gold.",
+          "action": "NotEnoughGoldForBuy()"
+        },
+        {
+          "context": "Trader don't have the <weapon> for sale. It's sold out.",
+          "action": "SoldOut()"
+        }
+      ]
+    },
+
+    "SellWeaponUpgrade": {
+      "actions_contexts": [
+        {
+          "context": "User can buy the <upgrade> for his weapon. He have enough gold.",
+          "action": "SellWeaponUpgrade(<upgrade>)"
+        },
+        {
+          "context": "User can't buy the <upgrade> for his weapon. He doesn't have enough gold.",
+          "action": "NotEnoughGoldForBuy()"
+        },
+        {
+          "context": "Trader don't have the <upgrade> for sale. It's sold out.",
+          "action": "SoldOut()"
+        }
+      ]
+    },
+
+    "SellHealingItem": {
+      "actions_contexts": [
+        {
+          "context": "User can buy the <medical_item>. He have enough gold.",
+          "action": "SellHealingItem(<medical_item>)"
+        },
+        {
+          "context": "User can't buy the <medical_item>. He doesn't have enough gold.",
+          "action": "NotEnoughGoldForBuy()"
+        },
+        {
+          "context": "Trader don't have the <medical_item>. It's sold out.",
+          "action": "SoldOut()"
+        }
+      ]
+    }
+  },
+
+  "params": {
+    "<weapon>": [
+      "pistol",
+      "shotgun",
+      "rifle",
+      "SMG",
+      "sniper_rifle",
+      "rocket_launcher"
+    ],
+    "<upgrade>": [
+      "scope",
+      "extended_magazine",
+      "silencer",
+      "laser_sight",
+      "grip",
+      "recoil_reducer",
+      "quick_reload_kit",
+      "damage_booster",
+      "thermal_scope",
+      "stability_mod",
+      "barrel_upgrade",
+      "trigger_upgrade",
+      "camouflage_skin"
+    ],
+    "<medical_item>": [
+      "bandage",
+      "medkit",
+      "antidote",
+      "adrenaline_shot",
+      "regeneration_serum",
+      "painkillers",
+      "revive_kit"
+    ]
+  }
+}

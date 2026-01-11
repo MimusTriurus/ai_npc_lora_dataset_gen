@@ -22,6 +22,9 @@ class Action:
         #params = [p.strip("<>") for p in raw_params]
         return Action(name=name, parameters=params)
 
+    def __eq__(self, other):
+        return self.name == other.name and self.parameters == other.parameters
+
 
 @dataclass
 class Question:

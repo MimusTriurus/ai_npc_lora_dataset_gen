@@ -29,8 +29,9 @@
 
 ### Output Format:
 * Output only the new template, nothing else.
-* Do not explain your reasoning.
+* Do not use utf-8 symbols!
 * Do not list multiple options unless explicitly requested.
+* Example: Could you check if you have any <ammo> compatible with my weapon? I'd really appreciate it if you could sell me some.
 
 ### Patterns should not be repeated (check *"Existed templates"* below)
 #### Existed templates:

@@ -1,3 +1,4 @@
+import os
 import re
 from dataclasses import asdict
 import json
@@ -241,3 +242,9 @@ def load_jsonl_to_dataclasses(
 def extract_angle_bracket_substrings(text: str):
     return re.findall(r"<[^>]*>", text)
 
+def list_files(folder_path: str) -> list[str]:
+    return [
+        os.path.join(folder_path, name)
+        for name in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, name))
+    ]

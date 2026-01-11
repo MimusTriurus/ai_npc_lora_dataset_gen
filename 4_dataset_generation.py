@@ -4,7 +4,7 @@ import random
 from common.helpers import (
     load_jsonl_to_dataclasses,
     read_file,
-    save_dict_records_to_jsonl
+    save_dict_records_to_jsonl, list_files
 )
 from common.data_classes import *
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
@@ -50,7 +50,7 @@ Your specific task: Rewrite the following block: {input_thinking}
     return response
 
 
-def create_dataset_record(sp, context, state, request, think_content, emotion, answer, action):
+def create_dataset_record(sp, context, state, request, think_content, emotion, answer, action, use_thinking=True):
     user_input_json = {
         "context": context,
         "state_of_user": state,
@@ -61,10 +61,11 @@ def create_dataset_record(sp, context, state, request, think_content, emotion, a
         "answer": answer,
         "action": action
     }
-
-    think_content = summarize_thinking(think_content)
-
-    assistant_content = f"<think>\n{think_content}\n</think>\n{json.dumps(assistant_output_json, ensure_ascii=False)}"
+    if use_thinking:
+        think_content = summarize_thinking(think_content)
+        assistant_content = f"<think>\n{think_content}\n</think>\n{json.dumps(assistant_output_json, ensure_ascii=False)}"
+    else:
+        assistant_content = f"{json.dumps(assistant_output_json, ensure_ascii=False)}"
 
     base = {
         "messages": [
@@ -81,9 +82,9 @@ def create_dataset_record(sp, context, state, request, think_content, emotion, a
     }
     return base
 
-
 if __name__ == '__main__':
     npc = os.getenv('NPC', 'npc_trader')
+    use_thinking = os.getenv("USE_THINKING", "false").lower() in ("1", "true", "yes", "on")
 
     system_prompt_template = read_file('resources/systemPrompt_for_LoRA_training.md')
     npc_desc = read_file(f'resources/{npc}/npc_description.md')
@@ -92,41 +93,54 @@ if __name__ == '__main__':
     system_prompt = system_prompt_template.replace('<npc_description></npc_description>', npc_desc)
     system_prompt = system_prompt.replace('<actions></actions>', actions_text)
 
-    irrelevant_rr = load_jsonl_to_dataclasses(f'resources/{npc}/output/3_generated_irrelevant_requests_responses.json', RequestResponsePair)
-    relevant_rr = load_jsonl_to_dataclasses(f'resources/{npc}/output/3_generated_relevant_requests_responses.json', RequestResponsePair)
+    think_instruction = '6. Think concisely in <think> tags (Facts -> Logic -> Action).' if use_thinking else ''
 
-    rrs = irrelevant_rr + relevant_rr
-    random.shuffle(rrs)
+    system_prompt = system_prompt.replace('<think_instruction></think_instruction>', think_instruction)
 
-    dataset = []
-
-    rr_by_action = dict()
-    counter = 0
-    for rr in rrs:
-        print(f'{counter} / {len(rrs)}')
-        counter += 1
-        if not rr.npc_response['answer']:
-            continue
-        ds_json = create_dataset_record(
-            sp=system_prompt,
-            context=rr.user_request['context'],
-            state=rr.user_request['state_of_user'],
-            request=rr.user_request['request_of_user'],
-            think_content=rr.npc_response['think'],
-            emotion=rr.npc_response['emotion'],
-            answer=rr.npc_response['answer'],
-            action=rr.npc_response['action']
+    relevant_requests_f_paths = list_files(f'resources/{npc}/output/3_requests_responses')
+    for f_path in relevant_requests_f_paths:
+        print(f'=== {f_path} ===')
+        rrs = load_jsonl_to_dataclasses(
+            f_path,
+            RequestResponsePair
         )
 
-        dataset.append(ds_json)
+        random.shuffle(rrs)
 
-    random.shuffle(dataset)
+        dataset = []
 
-    n = int(len(dataset) * 0.9)
-    training_dataset = dataset[:n]
-    validation_dataset = dataset[n:]
+        rr_by_action = dict()
+        counter = 1
 
-    save_dict_records_to_jsonl(dataset, f'resources/{npc}/output/4_training_dataset.jsonl')
-    save_dict_records_to_jsonl(validation_dataset, f'resources/{npc}/output/4_validation_dataset.jsonl')
+        path = Path(f_path)
+        dataset_name = path.stem
+
+        for rr in rrs:
+            print(f'{counter} / {len(rrs)}')
+            counter += 1
+            if not rr.npc_response['answer']:
+                continue
+            ds_json = create_dataset_record(
+                sp=system_prompt,
+                context=rr.user_request['context'],
+                state=rr.user_request['state_of_user'],
+                request=rr.user_request['request_of_user'],
+                think_content=rr.npc_response['think'],
+                emotion=rr.npc_response['emotion'],
+                answer=rr.npc_response['answer'],
+                action=rr.npc_response['action'],
+                use_thinking=use_thinking
+            )
+
+            dataset.append(ds_json)
+
+        n = int(len(dataset) * 0.99)
+        training_dataset = dataset[:n]
+        validation_dataset = dataset[n:]
+
+        dir_name = 'instruct_dataset' if not use_thinking else 'thinking_dataset'
+
+        save_dict_records_to_jsonl(training_dataset, f'resources/{npc}/output/{dir_name}/training/{dataset_name}.jsonl')
+        save_dict_records_to_jsonl(validation_dataset, f'resources/{npc}/output/{dir_name}/validation/{dataset_name}.jsonl')
 
     print('=== end ===')

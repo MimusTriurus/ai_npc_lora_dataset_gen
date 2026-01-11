@@ -37,13 +37,15 @@ def extract_dialogue_lines(text: str) -> Set[str]:
 
 if __name__ == '__main__':
     QUESTIONS_PER_ITERATION = 100
+    DATASET_SIZE = 4200
     npc_desc = read_file(f'resources/{npc}/npc_description.md')
     helper = OllamaHelper(OLLAMA_HOST)
     prompt = make_negative_prompt(npc_desc, QUESTIONS_PER_ITERATION)
 
     questions: Set[str] = set()
 
-    while len(questions) < QUESTIONS_PER_ITERATION * 10:
+    while len(questions) < DATASET_SIZE:
+        print(f'==> {len(questions)} / {DATASET_SIZE}')
         questions_str, think = helper.generate(MODEL, prompt)
         questions.update(extract_dialogue_lines(questions_str))
 
@@ -60,6 +62,7 @@ if __name__ == '__main__':
         response = NpcResponse(
             emotion='',
             answer='',
+            think='',
             action=npc_callback_action,
         )
 
@@ -67,6 +70,6 @@ if __name__ == '__main__':
 
         rrps.append(rrp)
 
-    save_dataclass_records_to_jsonl(rrps, output_file=f'resources/{npc}/output/2_generated_irrelevant_player_requests.json')
+    save_dataclass_records_to_jsonl(rrps, output_file=f'resources/{npc}/output/2_irrelevant_requests/DoNothing.json')
 
     print('end of generating irrelevant questions')

@@ -1,3 +1,4 @@
+import re
 from typing import Set
 
 from common.data_classes import Question
@@ -6,6 +7,8 @@ from common.ollama_helper import *
 import json
 
 npc = os.getenv('NPC', 'npc_trader')
+npc_desc_f_path = os.getenv('NPC_DESCRIPTION_PATH', f'resources/{npc}/npc_description.md')
+roles_count = int(os.getenv('ROLES_COUNT', 10))
 
 def build_system_prompt(base_system_prompt: str, character: dict) -> str:
     character_block = (
@@ -27,53 +30,81 @@ input_data = 'player_questions'
 #input_data = 'npc_answers'
 
 if __name__ == '__main__':
+    npc_description = read_file(npc_desc_f_path)
+
     generation_questions = json.loads(read_file(f"resources/{npc}/dataset_{input_data}_configuration.json"))
     helper = OllamaHelper(OLLAMA_HOST)
-    questions_templates: Set[Question] = set()
     for qt in generation_questions['questions_templates']:
         base_template = qt['base_template']
-        MAX = qt['count']
 
+        param_pattern = ''
+        target_param = ''
+        r = re.findall(r'<(.*?)>', base_template)
+        if r:
+            target_param = r[0]
+
+        MAX = qt['count']
+        action_name = qt['action']
         question = Question(
             base_template,
-            qt['action'],
+            action_name,
             qt['motivation'],
             '',
         )
+        questions_templates: Set[Question] = set()
         questions_templates.add(question)
 
         system_prompt = read_file(f'resources/system_prompt_gen_{input_data}.md')
-        system_prompt = system_prompt.replace('<npc_description></npc_description>', generation_questions['npc_desc'])
+        system_prompt = system_prompt.replace('<npc_description></npc_description>', npc_description)
         print(f'= Generate analogue of: {base_template}')
-        for pr in generation_questions['roles']:
+        for pr in generation_questions['roles'][:roles_count]:
             pr['motivation'] = qt['motivation']
             new_system_prompt = build_system_prompt(system_prompt, pr)
 
             template_request = f"Create another template for : {base_template}"
             new_system_prompt += f'\n* {base_template}'
-            print(f"== Role {pr}")
+            print(f"== Role {pr['id']}")
             prompt = build_prompt(new_system_prompt, template_request)
             counter = MAX
-            while counter:
+            while counter > 0:
                 new_template, think = helper.generate(MODEL, prompt)
                 if new_template.startswith('"'):
                     new_template = new_template[1:]
                 if new_template.endswith('"'):
                     new_template = new_template[:-1]
 
-                if new_template not in questions_templates:
-                    print(f'=== [{MAX - counter}] {new_template}')
-                    new_system_prompt += f'\n* {new_template}'
-                    counter -= 1
-                    question = Question(
-                        new_template,
-                        qt['action'],
-                        qt['motivation'],
-                        '',
-                    )
-                    questions_templates.add(question)
-            #break
-        #break
+                is_ok = True
+                if target_param:
+                    r = re.findall(r'<(.*?)>', new_template)
+                    for result in r:
+                        if result != target_param:
+                            is_ok = False
+                            break
 
-    save_questions_to_jsonl(questions_templates, f"resources/{npc}/output/0_generated_{input_data}_templates.json")
+                if not is_ok:
+                    print(f'===> skip {new_template}')
+                    continue
+
+                new_system_prompt += f'\n* {new_template}'
+                question = Question(
+                    new_template,
+                    action_name,
+                    qt['motivation'],
+                    '',
+                )
+
+                exists = any(x.template == new_template for x in questions_templates)
+
+                if not exists:
+                    print(f'=== [{MAX - counter}] {new_template}')
+                    questions_templates.add(question)
+                    counter -= 1
+                else:
+                    print(f'=== {new_template} already exists')
+
+        save_questions_to_jsonl(
+            questions_templates,
+            f"resources/{npc}/output/0_request_templates/{action_name}.json"
+        )
+        #break
     print('=== end ===')
