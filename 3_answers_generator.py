@@ -109,18 +109,20 @@ def generate_answers(
     return rrps
 
 if __name__ == '__main__':
-    print(f'=== Generate relevant answers ===')
-    relevant_requests_f_paths = list_files(f'resources/{npc}/output/1_requests')
-    for f_path in relevant_requests_f_paths:
-        print(f'=== {f_path} ===')
-        relevant_cases = generate_answers(
-            'resources/systemPrompt.md',
-            f'resources/{npc}/chat_example.md',
-            f_path,
-            relevant_limit
-        )
-        filename = os.path.basename(f_path)
-        save_dataclass_records_to_jsonl(relevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
+    generate_relevant_answers = False
+    if generate_relevant_answers:
+        print(f'=== Generate relevant answers ===')
+        relevant_requests_f_paths = list_files(f'resources/{npc}/output/1_requests')
+        for f_path in relevant_requests_f_paths:
+            print(f'=== {f_path} ===')
+            relevant_cases = generate_answers(
+                'resources/systemPrompt.md',
+                f'resources/{npc}/chat_example.md',
+                f_path,
+                relevant_limit
+            )
+            filename = os.path.basename(f_path)
+            save_dataclass_records_to_jsonl(relevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
 
     print('\n')
 

@@ -134,7 +134,7 @@ if __name__ == '__main__':
 
             dataset.append(ds_json)
 
-        n = int(len(dataset) * 0.99)
+        n = int(len(dataset) * 0.95)
         training_dataset = dataset[:n]
         validation_dataset = dataset[n:]
 
