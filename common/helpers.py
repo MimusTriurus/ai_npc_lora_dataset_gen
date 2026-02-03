@@ -248,3 +248,38 @@ def list_files(folder_path: str) -> list[str]:
         for name in os.listdir(folder_path)
         if os.path.isfile(os.path.join(folder_path, name))
     ]
+
+def calculate_dataset_params(
+    dataset_size=4000,
+    actions=4,
+    params=6,
+    roles_min=1,
+    roles_max=200,
+    queries_min=1,
+    queries_max=200,
+    tolerance=0.05
+):
+    target = dataset_size
+    base = actions * params
+    ideal = target / base
+
+    solutions = []
+
+    for r in range(roles_min, roles_max + 1):
+        for q in range(queries_min, queries_max + 1):
+            produced = base * r * q
+            error = abs(produced - target) / target
+
+            if error <= tolerance:
+                solutions.append({
+                    "roles": r,
+                    "queries": q,
+                    "produced": produced,
+                    "error": error
+                })
+
+    if solutions:
+        solutions = sorted(solutions, key=lambda x: (x["roles"], x["produced"]), reverse=True)
+
+    return solutions
+

@@ -31,7 +31,9 @@
 * Output only the new template, nothing else.
 * Do not use utf-8 symbols!
 * Do not list multiple options unless explicitly requested.
-* Example: Could you check if you have any <ammo> compatible with my weapon? I'd really appreciate it if you could sell me some.
+* Example: 
+  * Input: Got any <medical_item> you can sell me quick? I need it to keep moving.
+  * Output: Do you carry any <medical_item>? I need it to get back in action.
 
 ### Patterns should not be repeated (check *"Existed templates"* below)
 #### Existed templates:

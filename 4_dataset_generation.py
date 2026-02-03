@@ -86,7 +86,9 @@ if __name__ == '__main__':
     npc = os.getenv('NPC', 'npc_trader')
     use_thinking = os.getenv("USE_THINKING", "false").lower() in ("1", "true", "yes", "on")
 
-    system_prompt_template = read_file('resources/systemPrompt_for_LoRA_training.md')
+    system_prompt_template = read_file(
+        os.getenv('SYS_PROMPT_F_PATH', 'resources/obsolete/[OBSOLETE] systemPrompt_for_LoRA_training.md')
+    )
     npc_desc = read_file(f'resources/{npc}/npc_description.md')
     actions_text = read_file(f'resources/{npc}/actions.txt')
 
@@ -134,7 +136,7 @@ if __name__ == '__main__':
 
             dataset.append(ds_json)
 
-        n = int(len(dataset) * 0.95)
+        n = int(len(dataset) * 0.99)
         training_dataset = dataset[:n]
         validation_dataset = dataset[n:]
 

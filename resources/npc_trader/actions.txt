@@ -3,3 +3,4 @@
   - NotEnoughGoldForBuy
   - SoldOut
   - DoNothing
+  - ShowItemInfo

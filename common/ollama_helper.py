@@ -3,7 +3,7 @@ import os
 import ollama
 from typing import Dict, List, Optional, Tuple
 
-MODEL = os.getenv('MODEL', 'qwen3:4b-instruct')
+MODEL = os.getenv('OLLAMA_MODEL', 'qwen3:4b-instruct')
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'npc_lora_dataset.jsonl')
 

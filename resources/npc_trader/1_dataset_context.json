@@ -129,6 +129,82 @@
           "action": "ShowItems(all)"
         }
       ]
+    },
+
+    "ShowAmmo_1": {
+      "actions_contexts": [
+        {
+          "context": "Item: <ammo>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<ammo>)"
+        }
+      ]
+    },
+    "ShowAmmo_2": {
+      "actions_contexts": [
+        {
+          "context": "Item: <ammo>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<ammo>)"
+        }
+      ]
+    },
+
+    "ShowWeapon_1": {
+      "actions_contexts": [
+        {
+          "context": "Item: <weapon>. Price: [500-1000] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<weapon>)"
+        }
+      ]
+    },
+    "ShowWeapon_2": {
+      "actions_contexts": [
+        {
+          "context": "Item: <weapon>. Price: [500-1000] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<weapon>)"
+        }
+      ]
+    },
+
+    "ShowWeaponUpgrade_1": {
+      "actions_contexts": [
+        {
+          "context": "Item: <weapon>. Price: [250-500] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<weapon>)"
+        }
+      ]
+    },
+    "ShowWeaponUpgrade_2": {
+      "actions_contexts": [
+        {
+          "context": "Item: <upgrade>. Price: [250-500] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<upgrade>)"
+        }
+      ]
+    },
+
+    "ShowHealingItem_1": {
+      "actions_contexts": [
+        {
+          "context": "Item: <medical_item>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<medical_item>)"
+        }
+      ]
+    },
+    "ShowHealingItem_2": {
+      "actions_contexts": [
+        {
+          "context": "Item: <medical_item>. Price: [50-250] gold. Amount: [1-10]",
+          "state_of_user": "User has [1000-5000] gold.",
+          "action": "ShowItemInfo(<medical_item>)"
+        }
+      ]
     }
   },
 

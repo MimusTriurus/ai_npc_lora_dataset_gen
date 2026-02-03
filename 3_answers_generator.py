@@ -19,6 +19,7 @@ import json
 npc = os.getenv('NPC', 'npc_trader')
 relevant_limit = int(os.getenv('RELEVANT_LIMIT', 99999))
 irrelevant_limit = int(os.getenv('IRRELEVANT_LIMIT', 99999))
+inference_sys_prompt = os.getenv('SYS_PROMPT_F_PATH', 'resources/npc_trader/system_prompt.md')
 
 def generate_answers(
         sp_f_path: str,
@@ -109,14 +110,16 @@ def generate_answers(
     return rrps
 
 if __name__ == '__main__':
-    generate_relevant_answers = False
+    generate_relevant_answers = os.getenv('GENERATE_IRRELEVANT_ANSWERS', 'true').lower() in ("1", "true", "yes", "on")
+    generate_irrelevant_answers = os.getenv('GENERATE_IRRELEVANT_ANSWERS', 'false').lower() in ("1", "true", "yes", "on")
+
     if generate_relevant_answers:
         print(f'=== Generate relevant answers ===')
         relevant_requests_f_paths = list_files(f'resources/{npc}/output/1_requests')
         for f_path in relevant_requests_f_paths:
             print(f'=== {f_path} ===')
             relevant_cases = generate_answers(
-                'resources/systemPrompt.md',
+                inference_sys_prompt,
                 f'resources/{npc}/chat_example.md',
                 f_path,
                 relevant_limit
@@ -126,17 +129,18 @@ if __name__ == '__main__':
 
     print('\n')
 
-    print(f'=== Generate irrelevant answers ===')
-    irrelevant_requests_f_paths = list_files(f'resources/{npc}/output/2_irrelevant_requests')
-    for f_path in irrelevant_requests_f_paths:
-        print(f'=== {f_path} ===')
-        irrelevant_cases = generate_answers(
-            'resources/systemPrompt_irrelevant_case.md',
-            'resources/chat_example_irrelevant_case.md',
-            f_path,
-            irrelevant_limit
-        )
-        filename = os.path.basename(f_path)
-        save_dataclass_records_to_jsonl(irrelevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
+    if generate_irrelevant_answers:
+        print(f'=== Generate irrelevant answers ===')
+        irrelevant_requests_f_paths = list_files(f'resources/{npc}/output/2_irrelevant_requests')
+        for f_path in irrelevant_requests_f_paths:
+            print(f'=== {f_path} ===')
+            irrelevant_cases = generate_answers(
+                'resources/2_systemPrompt_irrelevant_case.md',
+                'resources/2_chat_example_irrelevant_case.md',
+                f_path,
+                irrelevant_limit
+            )
+            filename = os.path.basename(f_path)
+            save_dataclass_records_to_jsonl(irrelevant_cases, output_file=f'resources/{npc}/output/3_requests_responses/{filename}')
 
     print('=== end ===')
