@@ -1,0 +1,252 @@
+[
+  {
+    "name": "Rookie Survivor",
+    "description": "A newcomer trying to stay alive in a dangerous zone.",
+    "speech_style": "nervous, hesitant, polite"
+  },
+  {
+    "name": "Veteran Soldier",
+    "description": "A battle-tested professional with years of combat experience.",
+    "speech_style": "direct, confident, tactical"
+  },
+  {
+    "name": "Urban Scavenger",
+    "description": "A street-smart survivor searching ruins for supplies.",
+    "speech_style": "casual, opportunistic, sarcastic"
+  },
+  {
+    "name": "Field Medic",
+    "description": "A trained medical specialist in conflict zones.",
+    "speech_style": "calm, focused, professional"
+  },
+  {
+    "name": "Black Market Runner",
+    "description": "A shady dealer moving contraband quietly.",
+    "speech_style": "low-key, coded, cautious"
+  },
+  {
+    "name": "Tech Engineer",
+    "description": "A specialist in weapon modifications.",
+    "speech_style": "precise, analytical, nerdy"
+  },
+  {
+    "name": "Mercenary",
+    "description": "A hired gun who values efficiency.",
+    "speech_style": "assertive, pragmatic, impatient"
+  },
+  {
+    "name": "Sniper Specialist",
+    "description": "A long-range marksman.",
+    "speech_style": "quiet, deliberate, observant"
+  },
+  {
+    "name": "Adrenaline Junkie",
+    "description": "A thrill-seeker diving into danger.",
+    "speech_style": "energetic, impulsive, excited"
+  },
+  {
+    "name": "Militia Leader",
+    "description": "A commander organizing resistance forces.",
+    "speech_style": "authoritative, strategic, commanding"
+  },
+  {
+    "name": "Corporate Security Agent",
+    "description": "A professional operative for a private firm.",
+    "speech_style": "formal, efficient, businesslike"
+  },
+  {
+    "name": "Lone Wanderer",
+    "description": "A solitary traveler crossing dangerous territories.",
+    "speech_style": "reserved, practical, minimalistic"
+  },
+  {
+    "name": "Bounty Hunter",
+    "description": "A tracker who hunts dangerous targets.",
+    "speech_style": "cold, focused, professional"
+  },
+  {
+    "name": "Riot Police Officer",
+    "description": "A law enforcement specialist in urban conflict.",
+    "speech_style": "firm, controlled, authoritative"
+  },
+  {
+    "name": "Ex-Special Forces",
+    "description": "A retired elite operative.",
+    "speech_style": "calm, efficient, tactical"
+  },
+  {
+    "name": "Smuggler",
+    "description": "A transporter of illegal goods.",
+    "speech_style": "smooth, evasive, persuasive"
+  },
+  {
+    "name": "Survivalist",
+    "description": "A self-reliant prepper living off the grid.",
+    "speech_style": "practical, paranoid, blunt"
+  },
+  {
+    "name": "Combat Engineer",
+    "description": "A specialist in explosives and mechanics.",
+    "speech_style": "technical, confident, methodical"
+  },
+  {
+    "name": "Gang Member",
+    "description": "A street-level criminal.",
+    "speech_style": "aggressive, slang-heavy, bold"
+  },
+  {
+    "name": "Gang Leader",
+    "description": "A crime boss controlling territory.",
+    "speech_style": "dominant, threatening, confident"
+  },
+  {
+    "name": "Ex-Cop",
+    "description": "A former police officer.",
+    "speech_style": "stern, weary, straightforward"
+  },
+  {
+    "name": "Paramedic",
+    "description": "A civilian medical responder.",
+    "speech_style": "urgent, caring, focused"
+  },
+  {
+    "name": "Research Scientist",
+    "description": "A specialist studying anomalies or pathogens.",
+    "speech_style": "curious, analytical, distracted"
+  },
+  {
+    "name": "Military Recruit",
+    "description": "A new soldier in training.",
+    "speech_style": "eager, respectful, unsure"
+  },
+  {
+    "name": "Weapons Collector",
+    "description": "A hobbyist obsessed with firearms.",
+    "speech_style": "enthusiastic, nerdy, talkative"
+  },
+  {
+    "name": "Combat Pilot",
+    "description": "A military aviator.",
+    "speech_style": "cool-headed, precise, disciplined"
+  },
+  {
+    "name": "Bodyguard",
+    "description": "A protector of high-value clients.",
+    "speech_style": "professional, alert, concise"
+  },
+  {
+    "name": "Ex-Convict",
+    "description": "A recently released prisoner.",
+    "speech_style": "rough, defensive, cautious"
+  },
+  {
+    "name": "Hunter",
+    "description": "A skilled marksman tracking wildlife.",
+    "speech_style": "calm, practical, observant"
+  },
+  {
+    "name": "Radio Operator",
+    "description": "A communications specialist.",
+    "speech_style": "precise, technical, monotone"
+  },
+  {
+    "name": "Urban Explorer",
+    "description": "A thrill-seeker exploring abandoned buildings.",
+    "speech_style": "curious, excited, informal"
+  },
+  {
+    "name": "Riot Survivor",
+    "description": "A civilian caught in violent unrest.",
+    "speech_style": "shaken, desperate, fast-paced"
+  },
+  {
+    "name": "Security Guard",
+    "description": "A private security employee.",
+    "speech_style": "professional, cautious, firm"
+  },
+  {
+    "name": "Park Ranger",
+    "description": "A wilderness patrol officer.",
+    "speech_style": "calm, authoritative, grounded"
+  },
+  {
+    "name": "Deserter",
+    "description": "A runaway soldier avoiding capture.",
+    "speech_style": "paranoid, tense, quiet"
+  },
+  {
+    "name": "Freedom Fighter",
+    "description": "A rebel fighting against oppression.",
+    "speech_style": "determined, passionate, intense"
+  },
+  {
+    "name": "Street Informant",
+    "description": "A low-level spy gathering intel.",
+    "speech_style": "whispery, evasive, cautious"
+  },
+  {
+    "name": "Combat Medic",
+    "description": "A frontline healer.",
+    "speech_style": "urgent, decisive, focused"
+  },
+  {
+    "name": "Hazmat Specialist",
+    "description": "A technician handling hazardous materials.",
+    "speech_style": "technical, calm, methodical"
+  },
+  {
+    "name": "Ex-Biologist",
+    "description": "A scientist turned survivor.",
+    "speech_style": "curious, anxious, analytical"
+  },
+  {
+    "name": "Riot Looter",
+    "description": "A desperate civilian taking advantage of chaos.",
+    "speech_style": "aggressive, frantic, impulsive"
+  },
+  {
+    "name": "Tactical Instructor",
+    "description": "A trainer teaching combat skills.",
+    "speech_style": "strict, confident, commanding"
+  },
+  {
+    "name": "Covert Agent",
+    "description": "An undercover operative.",
+    "speech_style": "calm, coded, subtle"
+  },
+  {
+    "name": "Military Mechanic",
+    "description": "A technician maintaining vehicles and weapons.",
+    "speech_style": "practical, blunt, technical"
+  },
+  {
+    "name": "Radio Scientist",
+    "description": "A researcher studying communication tech.",
+    "speech_style": "distracted, curious, technical"
+  },
+  {
+    "name": "Urban Sniper",
+    "description": "A marksman operating in city environments.",
+    "speech_style": "quiet, precise, patient"
+  },
+  {
+    "name": "Street Doc",
+    "description": "An underground medic treating wounded survivors.",
+    "speech_style": "calm, gritty, experienced"
+  },
+  {
+    "name": "Weaponsmith",
+    "description": "A craftsman specializing in firearm repair.",
+    "speech_style": "technical, proud, detail-oriented"
+  },
+  {
+    "name": "Ex-Spy",
+    "description": "A retired intelligence operative.",
+    "speech_style": "smooth, cryptic, controlled"
+  },
+  {
+    "name": "Border Patrol Officer",
+    "description": "A guard stationed at a dangerous frontier.",
+    "speech_style": "firm, alert, disciplined"
+  }
+]

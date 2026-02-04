@@ -1,128 +1,153 @@
 import json
+import math
+import os
 import sys
-from typing import Dict
-
+from typing import Dict, List
+import re
+import itertools
+from jinja2 import Environment
 from unidecode import unidecode
-
 from common.helpers import calculate_dataset_params
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL, build_prompt
 
-SYSTEM_PROMPT_TEMPLATE = """You are a dialogue data generator for a game AI system.
-Your task is to generate multiple player requests that will cause an NPC to invoke the following action with a SPECIFIC parameter.
-{action}
+DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
 
-Target action parameter:
-{target_parameter}
-
-The player who speaks these requests has the following role:
-{player_role_json}
-
-The player's intention:
-{intention}
-
-Generation rules:
-- Generate EXACTLY {num_requests} different player requests.
-- The target_parameter has to be mentioned in the player's request.
-- Each request must clearly and unambiguously imply the SAME target action parameter.
-- The parameter must NOT be mentioned explicitly or by its internal name.
-- Requests must be natural, immersive, and consistent with the player's speech_style and motivation.
-- The intent to buy must be obvious.
-- Avoid any ambiguity with other parameters.
-- Do NOT mention gold, prices, inventory counts, or game mechanics.
-- Vary wording, sentence structure, and phrasing between requests.
-- Keep each request to 1–2 sentences.
-
-Output format:
-A JSON array of strings.
-No extra fields. No explanations.
-"""
+SYSTEM_PROMPT_TEMPLATE = ""
+with open("resources/system_prompt.j2", "r", encoding="utf-8") as f:
+    SYSTEM_PROMPT_TEMPLATE += f.read()
 
 def build_system_prompt(
     action: Dict,
-    role: Dict,
-    target_parameter: str,
+    player_role: Dict,
+    npc_role: Dict,
+    target_parameters: str,
     num_requests: int
 ) -> str:
-    return SYSTEM_PROMPT_TEMPLATE.format(
-        action=action['ActionName'],
-        intention=action['Description'],
-        target_parameter=target_parameter,
-        player_role_json=json.dumps(role, indent=2, ensure_ascii=False),
-        num_requests=num_requests
-    )
+    env = Environment()
+    sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
+    params = {
+        "action": action['ActionName'],
+        "intention": action['RequestTemplate'],
+        "target_parameters": target_parameters,
+        "player_role_json": json.dumps(player_role, indent=2, ensure_ascii=False),
+        "npc_role_json": json.dumps(npc_role, indent=2, ensure_ascii=False),
+        "num_requests": num_requests
+    }
+    rendered_template = sp_template.render(params)
+    return rendered_template
 
 actions = []
 roles = []
 
 action_object = {
     "ActionName": "SellItem",
-    "Parameters": [
-        "pistol",
-        "rifle",
-        "shotgun",
-        "revolver",
-        "sniper_rifle",
-        "rocket_launcher"
-    ],
-    "Description": "The user asks to sell him a weapon, he has enough gold and the amount of goods from the merchant is > 0"
+    "Parameters":
+    {
+        "weapon": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"],
+        "name": ["Alex", "Jake"]
+    },
+    #"RequestTemplate": "Could you sell me the {{ weapon }} for defence from monsters"
+    "RequestTemplate": "Hi! My name is {{ name }}. Could you sell me the {{ weapon }} for defence from monsters"
 }
 
 actions.append(action_object)
 
-role_object = {
-    "id": "rookie_survivor",
-    "name": "Rookie Survivor",
-    "description": "A newcomer trying to stay alive in a dangerous zone.",
-    "speech_style": "nervous, hesitant, polite",
-    "motivation": "needs basic weapons and healing items"
-}
+# region load user's roles
+with open("resources/user_roles.json", "r", encoding="utf-8") as f:
+    roles: List[dict] = json.load(f)
 
-roles.append(role_object)
+roles_available = len(roles)
+# endregion
 
-solutions = calculate_dataset_params(
-    actions=len(actions),
-    params=len(actions[0]['Parameters']),
+# region load npc's role
+npc_role = {}
+with open("resources/npc_trader/npc_description.json", "r", encoding="utf-8") as f:
+    npc_role.update(json.load(f))
+# endregion
 
-    roles_min=1,
-    roles_max=60,
-    queries_min=1,
-    queries_max=100,
-    tolerance=0.05
-)
+for action in actions:
+    user_requests = set()
 
-target_roles_count = 0
-target_queries_count = 0
+    matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action_object['RequestTemplate'])
 
-if solutions:
-    target_roles_count = solutions[0]["roles"]
-    target_queries_count = solutions[0]["queries"]
+    r: List = []
+    for match in matches:
+        args = action_object['Parameters'].get(match, [])
+        pairs = []
+        for arg in args:
+            kv = ( match, arg )
+            pairs.append(kv)
+        if pairs:
+            r.append( pairs )
 
-if not target_roles_count or not target_queries_count:
-    exit(1)
+    combinations = list(itertools.product(*r))
 
-roles = roles[:target_roles_count]
+    request_combinations_count = len(combinations)
+    dataset_size_per_request_combinations = math.ceil(DATASET_SIZE_PER_ACTION / request_combinations_count)
 
-for role in roles:
-    for action in actions:
-        for parameter in action_object["Parameters"]:
+# region calculate dataset chunk parameters
+    solutions = calculate_dataset_params(
+        dataset_size=DATASET_SIZE_PER_ACTION,
+
+        actions=len(combinations),
+        params=1,
+
+        roles_min=1,
+        roles_max=roles_available,
+        queries_min=1,
+        queries_max=100,
+        tolerance=0.05
+    )
+
+    target_roles_count = 0
+    target_queries_count = 0
+
+    if solutions:
+        target_roles_count = solutions[0]["roles"]
+        target_queries_count = solutions[0]["queries"]
+
+    if not target_roles_count or not target_queries_count:
+        exit(1)
+# endregion
+
+    roles = roles[:target_roles_count]
+
+    for combination in combinations:
+        params = {}
+        target_params = []
+        for c in combination:
+            k, v = c
+            target_params.append(f'{k}: {v}')
+            params.update({k: v})
+
+        target_params_str = ', '.join(target_params)
+
+        for player_role in roles:
             prompt = build_system_prompt(
                 action=action,
-                role=role,
-                target_parameter=parameter,
+                player_role=player_role,
+                npc_role=npc_role,
+                target_parameters=target_params_str,
                 num_requests=target_queries_count
             )
 
             helper = OllamaHelper(OLLAMA_HOST)
-
             new_template, think = helper.generate(MODEL, prompt)
 
-            res = set(json.loads(new_template))
+            try:
+                res = set(json.loads(new_template))
+                for r in res:
+                    isOk = True
+                    for k, v in params.items():
+                        if k not in r:
+                            isOk = False
+                            break
+                    if isOk:
+                        result = unidecode(r)
+                        result = result.replace('--', ' - ')
+                        user_requests.add(result)
+                        print(f'--- {result}')
+            except Exception as e:
+                print(e)
 
-            for r in res:
-                if parameter not in r:
-                    print(f'!!! error: {r}')
-                else:
-                    result = unidecode(r)
-                    result = result.replace('--', ' - ')
-                    print(f'--- {result}')
-            break
+    print(f'{len(user_requests)}/{DATASET_SIZE_PER_ACTION}')
