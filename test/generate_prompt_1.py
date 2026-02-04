@@ -2,7 +2,7 @@ import json
 import math
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Set
 import re
 import itertools
 from jinja2 import Environment
@@ -46,8 +46,9 @@ action_object = {
         "weapon": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"],
         "name": ["Alex", "Jake"]
     },
-    #"RequestTemplate": "Could you sell me the {{ weapon }} for defence from monsters"
-    "RequestTemplate": "Hi! My name is {{ name }}. Could you sell me the {{ weapon }} for defence from monsters"
+    "RequestTemplate": "Hi! My name is {{ name }}. Could you sell me the {{ weapon }} for defence from monsters.",
+    "UserStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+    "NpcStateTemplate": "Goods: {{ weapon }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
 }
 
 actions.append(action_object)
@@ -66,7 +67,7 @@ with open("resources/npc_trader/npc_description.json", "r", encoding="utf-8") as
 # endregion
 
 for action in actions:
-    user_requests = set()
+    user_requests = []
 
     matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action_object['RequestTemplate'])
 
@@ -132,20 +133,24 @@ for action in actions:
             )
 
             helper = OllamaHelper(OLLAMA_HOST)
-            new_template, think = helper.generate(MODEL, prompt)
+            requests_str, think = helper.generate(MODEL, prompt)
 
             try:
-                res = set(json.loads(new_template))
-                for r in res:
+                requests: Set[str] = set(json.loads(requests_str))
+                for request in requests:
                     isOk = True
                     for k, v in params.items():
-                        if k not in r:
+                        if v not in request:
                             isOk = False
                             break
                     if isOk:
-                        result = unidecode(r)
+                        result = unidecode(request)
                         result = result.replace('--', ' - ')
-                        user_requests.add(result)
+                        request_with_meta = {
+                            "request": result,
+                            "meta": params,
+                        }
+                        user_requests.append(result)
                         print(f'--- {result}')
             except Exception as e:
                 print(e)
