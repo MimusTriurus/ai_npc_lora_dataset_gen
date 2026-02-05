@@ -1,0 +1,36 @@
+[
+  {
+    "ActionName": "SellItem",
+    "Parameters":
+    {
+        "weapon": [
+          "pistol",
+          "rifle",
+          "shotgun",
+          "revolver",
+          "sniper_rifle",
+          "rocket_launcher"
+        ]
+    },
+    "RequestTemplate": "Could you sell me the {{ weapon }} for defence from monsters.",
+    "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+    "NpcStateTemplate": "Goods: {{ weapon }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
+  },
+  {
+    "ActionName": "SellItem",
+    "Parameters":
+    {
+        "ammo": [
+          "pistol's ammo",
+          "shotgun's ammo",
+          "rifle's ammo",
+          "revolver's ammo",
+          "sniper_rifle's ammo",
+          "rocket_launcher's ammo"
+        ]
+    },
+    "RequestTemplate": "Could you sell me the {{ ammo }} for my weapon?",
+    "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+    "NpcStateTemplate": "Goods: {{ ammo }}, Cost: {{ rand_range(10, 50) }}, Amount: {{ rand_range(1, 100) }}"
+  }
+]

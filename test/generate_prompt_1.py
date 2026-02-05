@@ -8,7 +8,7 @@ import re
 import itertools
 from jinja2 import Environment
 from unidecode import unidecode
-from common.helpers import calculate_dataset_params
+from common.helpers import calculate_dataset_params, save_dict_records_to_jsonl
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL, build_prompt
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
@@ -32,8 +32,7 @@ def build_system_prompt(
 ) -> str:
     sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
     params = {
-        "action": action['ActionName'],
-        "intention": action['RequestTemplate'],
+        "request_template": action['RequestTemplate'],
         "target_parameters": target_parameters,
         "player_role_json": json.dumps(player_role, indent=2, ensure_ascii=False),
         "npc_role_json": json.dumps(npc_role, indent=2, ensure_ascii=False),
@@ -42,22 +41,17 @@ def build_system_prompt(
     rendered_template = sp_template.render(params)
     return rendered_template
 
-actions = []
+actions: List[dict] = []
 roles = []
 
-action_object = {
-    "ActionName": "SellItem",
-    "Parameters":
-    {
-        "weapon": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"],
-        "name": ["Alex", "Jake"]
-    },
-    "RequestTemplate": "Hi! My name is {{ name }}. Could you sell me the {{ weapon }} for defence from monsters.",
-    "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
-    "NpcStateTemplate": "Goods: {{ weapon }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
-}
+actions_count = {}
 
-actions.append(action_object)
+with open("resources/npc_trader/actions.json", "r", encoding="utf-8") as f:
+    actions: List[dict] = json.load(f)
+    for action in actions:
+        if action['ActionName'] not in actions_count:
+            actions_count[action['ActionName']] = 0
+        actions_count[action['ActionName']] += 1
 
 # region load user's roles
 with open("resources/user_roles.json", "r", encoding="utf-8") as f:
@@ -75,16 +69,17 @@ with open("resources/npc_trader/npc_description.json", "r", encoding="utf-8") as
 for action in actions:
     user_requests = []
 
+    action_name = action['ActionName']
     usr_state_template = action['UsrStateTemplate']
     npc_state_template = action['NpcStateTemplate']
+    action_params = action.get('Parameters', {})
 
-    matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action_object['RequestTemplate'])
+    matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action['RequestTemplate'])
 
     r: List = []
     for match in matches:
-        args = action_object['Parameters'].get(match, [])
         pairs = []
-        for arg in args:
+        for arg in action_params.get(match, []):
             kv = ( match, arg )
             pairs.append(kv)
         if pairs:
@@ -95,17 +90,19 @@ for action in actions:
     request_combinations_count = len(combinations)
     dataset_size_per_request_combinations = math.ceil(DATASET_SIZE_PER_ACTION / request_combinations_count)
 
+    current_actions_count = actions_count[action_name]
+
 # region calculate dataset chunk parameters
     solutions = calculate_dataset_params(
         dataset_size=DATASET_SIZE_PER_ACTION,
 
-        actions=len(combinations),
-        params=1,
+        actions=current_actions_count,
+        params=len(combinations),
 
-        roles_min=1,
+        roles_min=5,
         roles_max=roles_available,
-        queries_min=1,
-        queries_max=100,
+        queries_min=5,
+        queries_max=50,
         tolerance=0.05
     )
 
@@ -119,6 +116,9 @@ for action in actions:
     if not target_roles_count or not target_queries_count:
         exit(1)
 # endregion
+
+    print(f'*** Current action {action_name}. Total: {target_queries_count * target_roles_count * len(combinations)}')
+    print(f'Roles: {target_roles_count} Requests: {target_queries_count} Params: {len(combinations)}')
 
     roles = roles[:target_roles_count]
 
@@ -147,6 +147,21 @@ for action in actions:
             try:
                 requests: Set[str] = set(json.loads(requests_str))
                 for request in requests:
+                    usr_state = env.from_string(usr_state_template).render(**params)
+                    npc_state = env.from_string(npc_state_template).render(**params)
+
+                    result = unidecode(request)
+                    result = result.replace('--', '-')
+                    request_with_states = {
+                        "request": result,
+                        "usr_state": usr_state,
+                        "npc_state": npc_state,
+                        "params": params,
+                    }
+                    user_requests.append(request_with_states)
+                    print(f'{action_name} [{len(user_requests)}/{DATASET_SIZE_PER_ACTION}] {result}')
+                    # region [OBSOLETE]
+                    '''
                     isOk = True
                     for k, v in params.items():
                         if v not in request:
@@ -162,15 +177,19 @@ for action in actions:
                             "request": result,
                             "usr_state": usr_state,
                             "npc_state": npc_state,
+                            "params": params,
                         }
                         user_requests.append(request_with_states)
                         print(f'--- {result}')
+                    else:
+                        print(f'*** Error! Args {params} not found in the {request}')
+                    '''
+                    # endregion
             except Exception as e:
                 print(e)
 
-    print(f'{len(user_requests)}/{DATASET_SIZE_PER_ACTION}')
+    # print(f'{action_name} {len(user_requests)}/{DATASET_SIZE_PER_ACTION}')
 
-    with open("data.json", "w", encoding="utf-8") as f:
-        json.dump(user_requests, f, ensure_ascii=False, indent=4)
+    save_dict_records_to_jsonl(user_requests, f'{action_name}.jsonl', append=True)
 
-    print('====')
+print('====')
