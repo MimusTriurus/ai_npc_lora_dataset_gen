@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import random
 import sys
 from typing import Dict, List, Set
 import re
@@ -11,6 +12,12 @@ from common.helpers import calculate_dataset_params
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL, build_prompt
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
+
+def rand_range(a, b):
+    return random.randint(a, b)
+
+env = Environment()
+env.globals["rand_range"] = rand_range
 
 SYSTEM_PROMPT_TEMPLATE = ""
 with open("resources/system_prompt.j2", "r", encoding="utf-8") as f:
@@ -23,7 +30,6 @@ def build_system_prompt(
     target_parameters: str,
     num_requests: int
 ) -> str:
-    env = Environment()
     sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
     params = {
         "action": action['ActionName'],
@@ -47,7 +53,7 @@ action_object = {
         "name": ["Alex", "Jake"]
     },
     "RequestTemplate": "Hi! My name is {{ name }}. Could you sell me the {{ weapon }} for defence from monsters.",
-    "UserStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+    "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
     "NpcStateTemplate": "Goods: {{ weapon }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
 }
 
@@ -68,6 +74,9 @@ with open("resources/npc_trader/npc_description.json", "r", encoding="utf-8") as
 
 for action in actions:
     user_requests = []
+
+    usr_state_template = action['UsrStateTemplate']
+    npc_state_template = action['NpcStateTemplate']
 
     matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action_object['RequestTemplate'])
 
@@ -144,15 +153,24 @@ for action in actions:
                             isOk = False
                             break
                     if isOk:
+                        usr_state = env.from_string(usr_state_template).render(**params)
+                        npc_state = env.from_string(npc_state_template).render(**params)
+
                         result = unidecode(request)
                         result = result.replace('--', ' - ')
-                        request_with_meta = {
+                        request_with_states = {
                             "request": result,
-                            "meta": params,
+                            "usr_state": usr_state,
+                            "npc_state": npc_state,
                         }
-                        user_requests.append(result)
+                        user_requests.append(request_with_states)
                         print(f'--- {result}')
             except Exception as e:
                 print(e)
 
     print(f'{len(user_requests)}/{DATASET_SIZE_PER_ACTION}')
+
+    with open("data.json", "w", encoding="utf-8") as f:
+        json.dump(user_requests, f, ensure_ascii=False, indent=4)
+
+    print('====')
