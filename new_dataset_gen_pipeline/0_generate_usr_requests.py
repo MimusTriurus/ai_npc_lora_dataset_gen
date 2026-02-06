@@ -9,9 +9,13 @@ import itertools
 from jinja2 import Environment
 from unidecode import unidecode
 from common.helpers import calculate_dataset_params, save_dict_records_to_jsonl
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL, build_prompt
+from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
+sp_template_f_path = os.getenv('SP_TEMPLATE_F_PATH', '')
+actions_f_path = os.getenv('ACTIONS_F_PATH', '')
+usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', '')
+npc_desc_f_path = os.getenv('NPC_DESC_F_PATH', '')
 
 def rand_range(a, b):
     return random.randint(a, b)
@@ -20,7 +24,7 @@ env = Environment()
 env.globals["rand_range"] = rand_range
 
 SYSTEM_PROMPT_TEMPLATE = ""
-with open("resources/system_prompt.j2", "r", encoding="utf-8") as f:
+with open(sp_template_f_path, "r", encoding="utf-8") as f:
     SYSTEM_PROMPT_TEMPLATE += f.read()
 
 def build_system_prompt(
@@ -46,7 +50,7 @@ roles = []
 
 actions_count = {}
 
-with open("resources/npc_trader/actions.json", "r", encoding="utf-8") as f:
+with open(f"{actions_f_path}", "r", encoding="utf-8") as f:
     actions: List[dict] = json.load(f)
     for action in actions:
         if action['ActionName'] not in actions_count:
@@ -54,7 +58,7 @@ with open("resources/npc_trader/actions.json", "r", encoding="utf-8") as f:
         actions_count[action['ActionName']] += 1
 
 # region load user's roles
-with open("resources/user_roles.json", "r", encoding="utf-8") as f:
+with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
     roles: List[dict] = json.load(f)
 
 roles_available = len(roles)
@@ -62,7 +66,7 @@ roles_available = len(roles)
 
 # region load npc's role
 npc_role = {}
-with open("resources/npc_trader/npc_description.json", "r", encoding="utf-8") as f:
+with open(f"{npc_desc_f_path}", "r", encoding="utf-8") as f:
     npc_role.update(json.load(f))
 # endregion
 
@@ -187,8 +191,6 @@ for action in actions:
                     # endregion
             except Exception as e:
                 print(e)
-
-    # print(f'{action_name} {len(user_requests)}/{DATASET_SIZE_PER_ACTION}')
 
     save_dict_records_to_jsonl(user_requests, f'{action_name}.jsonl', append=True)
 
