@@ -3,7 +3,7 @@ import math
 import os
 import random
 import sys
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 import re
 import itertools
 from jinja2 import Environment
@@ -45,7 +45,17 @@ def build_system_prompt(
     rendered_template = sp_template.render(params)
     return rendered_template
 
+import re
+
+def parse_action_signature(signature: str) -> Tuple[str, List]:
+    name_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", signature)
+    action_name = name_match.group(1) if name_match else None
+    params = re.findall(r"\{\{\s*(.*?)\s*\}\}", signature)
+    return action_name, params
+
+
 actions: List[dict] = []
+action_arg_names: Dict[str, List[str]] = {}
 roles = []
 
 actions_count = {}
@@ -53,9 +63,11 @@ actions_count = {}
 with open(f"{actions_f_path}", "r", encoding="utf-8") as f:
     actions: List[dict] = json.load(f)
     for action in actions:
-        if action['ActionName'] not in actions_count:
-            actions_count[action['ActionName']] = 0
-        actions_count[action['ActionName']] += 1
+        action_name, arg_names = parse_action_signature(action['ActionTemplate'])
+        action_arg_names[action_name] = arg_names
+        if action_name not in actions_count:
+            actions_count[action_name] = 0
+        actions_count[action_name] += 1
 
 # region load user's roles
 with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
@@ -72,8 +84,7 @@ with open(f"{npc_desc_f_path}", "r", encoding="utf-8") as f:
 
 for action in actions:
     user_requests = []
-
-    action_name = action['ActionName']
+    action_name, arg_names = parse_action_signature(action['ActionTemplate'])
     usr_state_template = action['UsrStateTemplate']
     npc_state_template = action['NpcStateTemplate']
     action_params = action.get('Parameters', {})
@@ -134,6 +145,13 @@ for action in actions:
             target_params.append(f'{k}: {v}')
             params.update({k: v})
 
+        action_args = {}
+        for k, v in params.items():
+            if action_name in action_arg_names:
+                args_names = action_arg_names[action_name]
+                if k in args_names:
+                    action_args[k] = v
+
         target_params_str = ', '.join(target_params)
 
         for player_role in roles:
@@ -160,35 +178,10 @@ for action in actions:
                         "request": result,
                         "usr_state": usr_state,
                         "npc_state": npc_state,
-                        "params": params,
+                        "params": action_args,
                     }
                     user_requests.append(request_with_states)
                     print(f'{action_name} [{len(user_requests)}/{DATASET_SIZE_PER_ACTION}] {result}')
-                    # region [OBSOLETE]
-                    '''
-                    isOk = True
-                    for k, v in params.items():
-                        if v not in request:
-                            isOk = False
-                            break
-                    if isOk:
-                        usr_state = env.from_string(usr_state_template).render(**params)
-                        npc_state = env.from_string(npc_state_template).render(**params)
-
-                        result = unidecode(request)
-                        result = result.replace('--', ' - ')
-                        request_with_states = {
-                            "request": result,
-                            "usr_state": usr_state,
-                            "npc_state": npc_state,
-                            "params": params,
-                        }
-                        user_requests.append(request_with_states)
-                        print(f'--- {result}')
-                    else:
-                        print(f'*** Error! Args {params} not found in the {request}')
-                    '''
-                    # endregion
             except Exception as e:
                 print(e)
 

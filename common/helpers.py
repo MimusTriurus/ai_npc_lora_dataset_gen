@@ -287,3 +287,5 @@ def calculate_dataset_params(
 
     return solutions
 
+def is_env_var_true(env_var: str) -> bool:
+    return os.getenv(env_var, 'true').lower() in ("1", "true", "yes", "on")
