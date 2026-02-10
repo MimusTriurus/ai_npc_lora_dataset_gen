@@ -185,6 +185,11 @@ for action in actions:
             except Exception as e:
                 print(e)
 
-    save_dict_records_to_jsonl(user_requests, f'{action_name}.jsonl', append=True)
+    save_dict_records_to_jsonl(
+        user_requests,
+        f'{action_name}.jsonl',
+        folder_path=f'output_data/',
+        append=True
+    )
 
 print('====')

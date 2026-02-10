@@ -1,77 +1,76 @@
-import re
 import json
-from collections import defaultdict
 
-def build_system_prompt(data):
-    action_map = {}  # { action_name: { param_name: set(values) } }
-
-    for block in data:
-        for action in block["ActionData"]:
-            raw_name = action["ActionName"]
-
-            # Убираем шаблонные параметры: CraftItem({{ material }}, {{ tool }}) → CraftItem
-            clean_name = re.sub(r"\(\s*\{\{.*?\}\}\s*\)", "", raw_name)
-
-            if clean_name not in action_map:
-                action_map[clean_name] = defaultdict(set)
-
-            # Собираем параметры по типам
-            for param_name, values in action["Parameters"].items():
-                for v in values:
-                    action_map[clean_name][param_name].add(v)
-
-    # Формируем SystemPrompt
-    output = []
-
-    for action_name, params_dict in action_map.items():
-        param_list = list(params_dict.keys())
-
-        # Заголовок действия
-        output.append(f"{action_name}")
-        output.append(f"   parameters: {json.dumps([f'<{p}>' for p in param_list])} where")
-
-        # Условия для каждого параметра
-        for p in param_list:
-            output.append(f"      <{p}> is one of AllowedParameters_{p}")
-
-        output.append("")
-
-        # AllowedParameters
-        for p, values in params_dict.items():
-            output.append(f"AllowedParameters_{p}")
-            for v in sorted(values):
-                output.append(f"- {v}")
-            output.append("")
-
-    return "\n".join(output)
-
-json_data = [
-  {
+data = {
     "ActionData": [
-      {
-        "ActionName": "CraftItem({{ material }}, {{ tool }})",
-        "Parameters": {
-          "material": ["iron", "wood", "stone"],
-          "tool": ["hammer", "saw", "chisel"]
+        {
+            "ActionTemplate": "SellItem({{ item }})",
+            "Parameters": {
+                "item": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"]
+            },
+            "RequestTemplate": "Could you sell me the {{ item }} for defence from monsters.",
+            "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+            "NpcStateTemplate": "Goods: {{ item }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
         },
-        "RequestTemplate": "Could you craft a weapon using {{ material }} and {{ tool }}?",
-        "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
-        "NpcStateTemplate": "Materials: {{ material }}, Tools: {{ tool }}"
-      },
-      {
-        "ActionName": "CraftItem({{ material }}, {{ tool }})",
-        "Parameters": {
-          "material": ["steel", "obsidian"],
-          "tool": ["forge", "anvil"]
+        {
+            "ActionTemplate": "DontHaveEnoughMoney({{ item }})",
+            "Parameters": {
+                "item": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"]
+            },
+            "RequestTemplate": "Could you sell me the {{ item }} for defence from monsters.",
+            "UsrStateTemplate": "User has {{ rand_range(0, 49) }} gold",
+            "NpcStateTemplate": "Goods: {{ item }}, Cost: {{ rand_range(50, 99) }}, Amount: {{ rand_range(1, 10) }}"
         },
-        "RequestTemplate": "I need a special item made from {{ material }} using a {{ tool }}.",
-        "UsrStateTemplate": "User has {{ rand_range(200, 800) }} gold",
-        "NpcStateTemplate": "Workshop: {{ tool }}, Materials: {{ material }}"
-      }
+        {
+            "ActionTemplate": "SoldOut({{ item }})",
+            "Parameters": {
+                "item": ["pistol", "rifle", "shotgun", "revolver", "sniper_rifle", "rocket_launcher"]
+            },
+            "RequestTemplate": "Could you sell me the {{ item }} for defence from monsters.",
+            "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+            "NpcStateTemplate": "Goods: {{ item }}, Cost: {{ rand_range(50, 99) }}, Amount: 0"
+        },
+        {
+            "ActionTemplate": "SellItem({{ item }})",
+            "Parameters": {
+                "item": ["pistol's ammo", "shotgun's ammo", "rifle's ammo", "revolver's ammo", "sniper_rifle's ammo",
+                         "rocket_launcher's ammo"]
+            },
+            "RequestTemplate": "Could you sell me the {{ item }} for my weapon?",
+            "UsrStateTemplate": "User has {{ rand_range(100, 500) }} gold",
+            "NpcStateTemplate": "Goods: {{ item }}, Cost: {{ rand_range(10, 50) }}, Amount: {{ rand_range(1, 100) }}"
+        }
     ]
-  }
-]
+}
 
-result = build_system_prompt(json_data)
-print(result)
+merged = {}
 
+for action in data["ActionData"]:
+    template = action["ActionTemplate"]
+
+    if template not in merged:
+        # Создаем новую запись, превращая RequestTemplate в массив
+        merged[template] = {
+            "ActionTemplate": template,
+            "Parameters": {k: list(v) for k, v in action["Parameters"].items()},
+            "RequestTemplate": [action["RequestTemplate"]],
+            "UsrStateTemplate": action["UsrStateTemplate"],
+            "NpcStateTemplate": action["NpcStateTemplate"]
+        }
+    else:
+        # 1. Объединяем списки в Parameters
+        for key, values in action["Parameters"].items():
+            if key in merged[template]["Parameters"]:
+                merged[template]["Parameters"][key].extend(values)
+            else:
+                merged[template]["Parameters"][key] = list(values)
+
+        # 2. Добавляем RequestTemplate в массив
+        merged[template]["RequestTemplate"].append(action["RequestTemplate"])
+
+        # UsrStateTemplate и NpcStateTemplate не трогаем (остаются от первого)
+
+# Превращаем словарь обратно в список
+result = {"ActionData": list(merged.values())}
+
+# Вывод результата
+print(json.dumps(result, indent=2, ensure_ascii=False))

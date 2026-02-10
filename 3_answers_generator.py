@@ -1,8 +1,6 @@
 import random
 import re
 
-from numpy.f2py.auxfuncs import throw_error
-
 from common.data_classes import (
     Action,
     NpcResponse,

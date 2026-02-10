@@ -2,9 +2,13 @@ import json
 import os
 import re
 from collections import defaultdict
-
-from common.helpers import is_env_var_true
+from jinja2 import Environment
+from common.helpers import is_env_var_true, save_text_file
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+
+env = Environment()
+
+GEN_ACTION_DESC_SP_F_PATH = os.getenv('GEN_ACTION_DESC_SP_F_PATH', '')
 
 def extract_nsloctext_value(text: str) -> str:
     match = re.search(r'NSLOCTEXT\([^,]+,\s*[^,]+,\s*\"(.*)\"\)', text)
@@ -17,9 +21,9 @@ def extract_nsloctext_value(text: str) -> str:
 
     return value
 
-def build_system_prompt(action_data):
-    actions = {}
-
+def build_actions_rules(action_data):
+    actions_params = {}
+    action_desc = {}
     param_groups = defaultdict(set)
 
     for action in action_data['ActionData']:
@@ -28,20 +32,25 @@ def build_system_prompt(action_data):
         clean_name = re.sub(r"\(\s*\{\{.*?\}\}\s*\)", "", raw_name)
 
         param_keys = list(action["Parameters"].keys())
-        actions[clean_name] = param_keys
-
+        actions_params[clean_name] = param_keys
+        action_desc[clean_name] = action["Description"]
         for key, values in action["Parameters"].items():
             param_groups[key].update(values)
 
     lines = []
 
-    for action_name, param_keys in actions.items():
+    for action_name, param_keys in actions_params.items():
+        if 'DoNothing' in action_name:
+            print('!')
         lines.append(f"{action_name}")
-        lines.append(f"   parameters: {json.dumps([f'<{p}>' for p in param_keys])} where")
+        if param_keys:
+            lines.append(f"   parameters: {json.dumps([f'<{p}>' for p in param_keys])} where")
+        else:
+            lines.append(f"   parameters: []")
 
         for p in param_keys:
             lines.append(f"      <{p}> is one of AllowedParameters_{p}")
-
+        lines.append(f"   description: {action_desc[action_name]}")
         lines.append("")
 
     for key, values in param_groups.items():
@@ -52,48 +61,63 @@ def build_system_prompt(action_data):
 
     return "\n".join(lines)
 
-def generate_action_description(npc_data: dict):# -> str:
+def merge_actions(action_data) -> list:
+    merged = {}
+
+    for action in action_data["ActionData"]:
+        template = action["ActionTemplate"]
+
+        if template not in merged:
+            merged[template] = {
+                "ActionTemplate": template,
+                "Parameters": {k: list(v) for k, v in action["Parameters"].items()},
+                "RequestTemplate": [action["RequestTemplate"]],
+                "UsrStateTemplate": action["UsrStateTemplate"],
+                "NpcStateTemplate": action["NpcStateTemplate"]
+            }
+        else:
+            for key, values in action["Parameters"].items():
+                if key in merged[template]["Parameters"]:
+                    merged[template]["Parameters"][key].extend(values)
+                else:
+                    merged[template]["Parameters"][key] = list(values)
+
+            merged[template]["RequestTemplate"].append(action["RequestTemplate"])
+
+    result = list(merged.values())
+    return result
+
+
+def generate_action_description(npc_data: dict):
     if not npc_data:
-        return ""
+        return
+
+    SYSTEM_PROMPT_TEMPLATE = ''
+    with open(GEN_ACTION_DESC_SP_F_PATH, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT_TEMPLATE += f.read()
+
+    npc_data["ActionData"] = merge_actions(npc_data)
 
     for action in npc_data["ActionData"]:
-        sp = f'''
-You are an Intent Analyzer for a game dialogue system.
-User is interacting with the following NPC:
-{npc_data['Description']}
-
-Your task:
-- Receive a JSON object describing an NPC action.
-- Analyze the fields:
-  - ActionName - describes the NPC's action in response to a user request (RequestTemplate).
-  - Parameters
-  - RequestTemplate - User's request to the NPC
-  - UsrStateTemplate
-  - NpcStateTemplate
-
-Interpretation guidelines:
-- Understand what the user is trying to achieve based on the RequestTemplate.
-- Treat random functions such as rand_range() as placeholders.
-- Your output must be a concise description of the user's intention in plain English.
-
-Rules:
-1. Describe only the intention of the user (what they want to achieve).
-2. If the action implies conditions (gold, amount of goods, etc.), mention them abstractly:
-   - "the user wants to buy an item if they have enough gold"
-   - "the user wants to sell an item if the merchant has stock"
-3. Do not mention parameters of the action in you response.
-
-Action for analysis:
-{json.dumps(action, indent=2)}
-        '''
+        params = {
+            "npc": npc_data['Description'],
+            "action": json.dumps(action, indent=2)
+        }
+        sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
+        sp = sp_template.render(params)
 
         helper = OllamaHelper(OLLAMA_HOST)
-        MODEL = 'qwen3:8b'
         action_description, think = helper.generate(MODEL, sp)
         action['Description'] = action_description
 
 if __name__ == "__main__":
     NPC_DESC_F_PATH = os.getenv("NPC_DESC_F_PATH")
+    INFERENCE_SP_F_PATH = os.getenv("INFERENCE_SP_F_PATH")
+
+    SYSTEM_PROMPT_TEMPLATE = ''
+    with open(INFERENCE_SP_F_PATH, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT_TEMPLATE += f.read()
+    sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
 
     with open(NPC_DESC_F_PATH, "r", encoding="utf-8") as f:
         npcs_desc = json.load(f)
@@ -102,5 +126,15 @@ if __name__ == "__main__":
             npc_data['Description'] = extract_nsloctext_value(npc_data['Description'])
             if is_env_var_true('GENERATE_ACTION_DESC'):
                 generate_action_description(npc_data)
-            prompt = build_system_prompt(npc_data)
-            print(prompt)
+            actions_rules = build_actions_rules(npc_data)
+            params = {
+                "npc": npc_data['Description'],
+                "actions_rules": actions_rules
+            }
+            sp = sp_template.render(params)
+
+            save_text_file(
+                folder_path=f"output_data/{npc_data['Name']}",
+                filename="system_prompt.txt",
+                content=sp
+            )

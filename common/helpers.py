@@ -6,6 +6,7 @@ from pathlib import Path
 from dataclasses import is_dataclass
 from typing import List, Type, TypeVar, Dict, Iterable, Set, Any
 from common.data_classes import Action, Question
+import os
 
 
 def camel_to_snake(name: str) -> str:
@@ -206,9 +207,13 @@ def save_dataclass_records_to_jsonl(
 def save_dict_records_to_jsonl(
     records: List[dict],
     output_file: str,
+    folder_path: str = '',
     append: bool = False
 ) -> None:
-    path = Path(output_file)
+    if folder_path:
+        os.makedirs(folder_path, exist_ok=True)
+
+    path = Path(os.path.join(folder_path, output_file))
     mode = "a" if append else "w"
     with path.open(mode, encoding="utf-8") as f:
         for r in records:
@@ -289,3 +294,14 @@ def calculate_dataset_params(
 
 def is_env_var_true(env_var: str) -> bool:
     return os.getenv(env_var, 'true').lower() in ("1", "true", "yes", "on")
+
+def save_text_file(folder_path: str, filename: str, content: str):
+    os.makedirs(folder_path, exist_ok=True)
+
+    file_path = os.path.join(folder_path, filename)
+
+    with open(file_path, "w") as f:
+        f.write(content)
+
+    return file_path
+
