@@ -80,7 +80,12 @@ def build_action_template_params(data: dict) -> dict:
 
 def render_template(template_str: str, context: dict) -> List[str]:
     template = env.from_string(template_str)
-    result = template.render(**context).split('\n')
+    result = []
+    rendered_requests = template.render(**context).split('\n')
+    for r in rendered_requests:
+        if not r:
+            continue
+        result.append(r)
     return result
 
 env = make_jinja_environment()
@@ -169,7 +174,7 @@ def main():
                     actions_count[action_name] += 1
 
                 for action_template_data in actions_template_data:
-                    requests_per_action = []
+                    requests_per_action = set()
 
                     action_name, arg_names = parse_action_signature(action_template_data['ActionTemplate'])
 
@@ -189,7 +194,14 @@ def main():
 
                     roles = roles[:roles_amount]
 
-                    print(f'=== roles: {roles_amount} requests_amount: {requests_amount} params_combination_amount: {request_combination_count} current_actions_amount: {current_actions_count} ===')
+                    print(
+                        f'=== '
+                        f'roles: {roles_amount} '
+                        f'requests_amount: {requests_amount} '
+                        f'params_combination_amount: {request_combination_count} '
+                        f'current_actions_amount: {current_actions_count} '
+                        f'==='
+                    )
                     print(f'=== Total: {roles_amount * requests_amount * request_combination_count * current_actions_count} ===')
 
                     for role in roles:
