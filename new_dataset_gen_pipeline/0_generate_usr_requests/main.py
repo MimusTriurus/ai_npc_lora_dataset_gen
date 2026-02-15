@@ -174,7 +174,7 @@ def main():
                     actions_count[action_name] += 1
 
                 for action_template_data in actions_template_data:
-                    requests_per_action = set()
+                    requests_per_action = []
 
                     action_name, arg_names = parse_action_signature(action_template_data['ActionTemplate'])
 
@@ -236,7 +236,9 @@ def main():
                                         requests_str, think = helper.generate(MODEL, prompt)
                                         result = unidecode(requests_str)
                                         result = result.replace('--', '-')
-                                        requests = json.loads(result)
+                                        requests = set(json.loads(result))
+                                        if len(requests) < requests_amount:
+                                            print(f'    === WARNING Generated amount requests is less than necessary: {len(requests)} < {requests_amount}')
                                         for request in requests:
                                             is_ok = True
                                             for target_parameter in args:
@@ -281,7 +283,7 @@ def main():
                     target_dir = f'output_data/{npc_name}/0_generate_usr_requests'
                     target_fname = f'{action_name}.jsonl'
                     save_dict_records_to_jsonl(
-                        records=requests_per_action,
+                        records=list(requests_per_action),
                         output_file=target_fname,
                         folder_path=target_dir,
                         append=True
