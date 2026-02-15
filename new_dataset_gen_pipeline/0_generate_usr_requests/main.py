@@ -1,15 +1,16 @@
 import json
 import os
-import random
-import re
 from typing import List, Tuple, Dict
-
-from jinja2 import Environment, ext
 from unidecode import unidecode
 
-from common.helpers import calculate_dataset_params, extract_nsloctext_value, save_dict_records_to_jsonl, \
+from common.helpers import (
+    calculate_dataset_params,
+    extract_nsloctext_value,
+    save_dict_records_to_jsonl,
     parse_action_signature
+)
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+from common.template_gen_components import env, build_action_template_params, render_template
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
 MAX_QUERIES_PER_ACTION_CHUNK = 50
@@ -20,76 +21,6 @@ usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', '')
 npc_desc_f_path = os.getenv('NPC_DESC_F_PATH', '')
 npc_name = os.getenv('NPC_NAME', '')
 
-# region Jinja template configuration
-def rand_range(a: int, b: int) -> int:
-    return random.randint(a, b)
-
-def join(lst: list) -> str:
-    return ", ".join(lst)
-
-class IterableExpansionExtension(ext.Extension):
-    pattern = re.compile(r"\{\{\s*(\w+)\[\]\s*\}\}")
-
-    def preprocess(self, source, name, filename=None):
-        variables = self.pattern.findall(source)
-
-        if not variables:
-            return source
-
-        seen = []
-        for v in variables:
-            if v not in seen:
-                seen.append(v)
-
-        for var in seen:
-            source = re.sub(
-                rf"\{{\{{\s*{var}\[\]\s*\}}\}}",
-                f"{{{{ {var}_it }}}}",
-                source
-            )
-
-        loop_open = [
-            f"{{% for {var}_it in {var} %}}"
-            for var in seen
-        ]
-        loop_close = ["{% endfor %}" for _ in seen]
-
-        wrapped = "\n".join(loop_open) + "\n"
-        wrapped += source.strip() + "\n"
-        wrapped += "\n".join(reversed(loop_close))
-
-        return wrapped
-
-def make_jinja_environment() -> Environment:
-    env_ = Environment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        extensions=[IterableExpansionExtension]
-    )
-    env_.globals["rand_range"] = rand_range
-    env_.globals["join"] = join
-    return env_
-
-def build_action_template_params(data: dict) -> dict:
-    parameters = data['Parameters']
-    result = {}
-    for parameter_name, parameter_values in parameters.items():
-        result[parameter_name] = parameter_values
-    result['Parameters'] = parameters
-    return result
-
-def render_template(template_str: str, context: dict) -> List[str]:
-    template = env.from_string(template_str)
-    result = []
-    rendered_requests = template.render(**context).split('\n')
-    for r in rendered_requests:
-        if not r:
-            continue
-        result.append(r)
-    return result
-
-env = make_jinja_environment()
-# endregion
 
 def get_roles() -> List[dict]:
     with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
@@ -273,6 +204,7 @@ def main():
                                             request_per_action = {
                                                 'usr_request': usr_request,
                                                 'npc_valid_action': npc_valid_action,
+                                                'player_role': role
                                             }
 
                                             requests_per_action.append(request_per_action)

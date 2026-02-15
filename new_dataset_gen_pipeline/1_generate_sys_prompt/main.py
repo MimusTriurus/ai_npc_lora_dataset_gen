@@ -1,6 +1,9 @@
 import json
 import os
+import sys
 from collections import defaultdict
+from typing import Dict
+
 from jinja2 import Environment
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
@@ -119,8 +122,20 @@ if __name__ == "__main__":
             }
             sp = sp_template.render(params)
 
+            actions_desc: Dict[str, str] = dict()
+            for action in npc_data["ActionData"]:
+                action_name, action_args = parse_action_signature(action["ActionTemplate"])
+                action_desc = action["Description"]
+                actions_desc[action_name] = action_desc
+
             save_text_file(
-                folder_path=f"output_data/{npc_data['Name']}/1_generate_usr_requests",
+                folder_path=f"output_data/{npc_data['Name']}/1_generate_system_prompt_data",
+                filename="actions_desc.json",
+                content=json.dumps(actions_desc, indent=2)
+            )
+
+            save_text_file(
+                folder_path=f"output_data/{npc_data['Name']}/1_generate_system_prompt_data",
                 filename="system_prompt.txt",
                 content=sp
             )
