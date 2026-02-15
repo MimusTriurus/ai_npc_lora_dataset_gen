@@ -4,9 +4,10 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 from dataclasses import is_dataclass
-from typing import List, Type, TypeVar, Dict, Iterable, Set, Any
+from typing import List, Type, TypeVar, Dict, Iterable, Set, Any, Tuple
 from common.data_classes import Action, Question
 import os
+import glob
 
 
 def camel_to_snake(name: str) -> str:
@@ -247,12 +248,9 @@ def load_jsonl_to_dataclasses(
 def extract_angle_bracket_substrings(text: str):
     return re.findall(r"<[^>]*>", text)
 
-def list_files(folder_path: str) -> list[str]:
-    return [
-        os.path.join(folder_path, name)
-        for name in os.listdir(folder_path)
-        if os.path.isfile(os.path.join(folder_path, name))
-    ]
+def list_files(pattern: str) -> list[str]:
+    return glob.glob(pattern)
+
 
 def calculate_dataset_params(
     dataset_size=4000,
@@ -305,3 +303,41 @@ def save_text_file(folder_path: str, filename: str, content: str):
 
     return file_path
 
+def extract_nsloctext_value(text: str) -> str:
+    match = re.search(r'NSLOCTEXT\([^,]+,\s*[^,]+,\s*\"(.*)\"\)', text)
+    if not match:
+        return text
+
+    value = match.group(1)
+
+    value = value.replace("\\r\\n", "\n")
+
+    value = value.encode('utf-8').decode('unicode_escape')
+
+    return value
+
+# извлекает имя action и набор аргументов
+# ShowItems({{ category[] }}) -> 'ShowItems', [category]
+def parse_action_signature(signature: str) -> Tuple[str, List[str]]:
+    name_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", signature)
+    action_name = name_match.group(1) if name_match else None
+
+    params_match = re.search(r"\((.*)\)", signature)
+    if not params_match:
+        return action_name, []
+
+    params_block = params_match.group(1)
+
+    raw_params = [p.strip() for p in params_block.split(",")]
+
+    cleaned_params = []
+
+    for param in raw_params:
+        var_match = re.search(r"\{\{\s*(\w+)", param)
+        if var_match:
+            cleaned_params.append(var_match.group(1))
+
+    if not cleaned_params:
+        return action_name, raw_params
+
+    return action_name, cleaned_params

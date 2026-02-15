@@ -1,195 +1,285 @@
 import json
-import math
 import os
 import random
-import sys
-from typing import Dict, List, Set, Tuple
 import re
-import itertools
-from jinja2 import Environment
+from typing import List, Tuple, Dict
+
+from jinja2 import Environment, ext
 from unidecode import unidecode
-from common.helpers import calculate_dataset_params, save_dict_records_to_jsonl
+
+from common.helpers import calculate_dataset_params, extract_nsloctext_value, save_dict_records_to_jsonl, \
+    parse_action_signature
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
+MAX_QUERIES_PER_ACTION_CHUNK = 50
+
 sp_template_f_path = os.getenv('SP_TEMPLATE_F_PATH', '')
 actions_f_path = os.getenv('ACTIONS_F_PATH', '')
 usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', '')
 npc_desc_f_path = os.getenv('NPC_DESC_F_PATH', '')
+npc_name = os.getenv('NPC_NAME', '')
 
-def rand_range(a, b):
+# region Jinja template configuration
+def rand_range(a: int, b: int) -> int:
     return random.randint(a, b)
 
-env = Environment()
-env.globals["rand_range"] = rand_range
+def join(lst: list) -> str:
+    return ", ".join(lst)
 
-SYSTEM_PROMPT_TEMPLATE = ""
-with open(sp_template_f_path, "r", encoding="utf-8") as f:
-    SYSTEM_PROMPT_TEMPLATE += f.read()
+class IterableExpansionExtension(ext.Extension):
+    pattern = re.compile(r"\{\{\s*(\w+)\[\]\s*\}\}")
+
+    def preprocess(self, source, name, filename=None):
+        variables = self.pattern.findall(source)
+
+        if not variables:
+            return source
+
+        seen = []
+        for v in variables:
+            if v not in seen:
+                seen.append(v)
+
+        for var in seen:
+            source = re.sub(
+                rf"\{{\{{\s*{var}\[\]\s*\}}\}}",
+                f"{{{{ {var}_it }}}}",
+                source
+            )
+
+        loop_open = [
+            f"{{% for {var}_it in {var} %}}"
+            for var in seen
+        ]
+        loop_close = ["{% endfor %}" for _ in seen]
+
+        wrapped = "\n".join(loop_open) + "\n"
+        wrapped += source.strip() + "\n"
+        wrapped += "\n".join(reversed(loop_close))
+
+        return wrapped
+
+def make_jinja_environment() -> Environment:
+    env_ = Environment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        extensions=[IterableExpansionExtension]
+    )
+    env_.globals["rand_range"] = rand_range
+    env_.globals["join"] = join
+    return env_
+
+def build_action_template_params(data: dict) -> dict:
+    parameters = data['Parameters']
+    result = {}
+    for parameter_name, parameter_values in parameters.items():
+        result[parameter_name] = parameter_values
+    result['Parameters'] = parameters
+    return result
+
+def render_template(template_str: str, context: dict) -> List[str]:
+    template = env.from_string(template_str)
+    result = template.render(**context).split('\n')
+    return result
+
+env = make_jinja_environment()
+# endregion
+
+def get_roles() -> List[dict]:
+    with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
+        roles: List[dict] = json.load(f)
+        return roles
+
+def get_system_prompt_template() -> str:
+    with open(sp_template_f_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+def get_npc_data():
+    with open(f"{npc_desc_f_path}", "r", encoding="utf-8") as f:
+        npc_data = json.load(f)
+        description = extract_nsloctext_value(npc_data['Description'])
+        return description
+
+SYSTEM_PROMPT_TEMPLATE = get_system_prompt_template()
 
 def build_system_prompt(
-    action: Dict,
+    request_example: str,
     player_role: Dict,
-    npc_role: Dict,
+    npc_role: str,
+    action: str,
     target_parameters: str,
     num_requests: int
 ) -> str:
     sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
     params = {
-        "request_template": action['RequestTemplate'],
+        "request_template": request_example,
+        "action": action,
         "target_parameters": target_parameters,
         "player_role_json": json.dumps(player_role, indent=2, ensure_ascii=False),
-        "npc_role_json": json.dumps(npc_role, indent=2, ensure_ascii=False),
+        "npc_role_json": npc_role,
         "num_requests": num_requests
     }
     rendered_template = sp_template.render(params)
     return rendered_template
 
-import re
-
-def parse_action_signature(signature: str) -> Tuple[str, List]:
-    name_match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", signature)
-    action_name = name_match.group(1) if name_match else None
-    params = re.findall(r"\{\{\s*(.*?)\s*\}\}", signature)
-    return action_name, params
-
-
-actions: List[dict] = []
-action_arg_names: Dict[str, List[str]] = {}
-roles = []
-
-actions_count = {}
-
-with open(f"{actions_f_path}", "r", encoding="utf-8") as f:
-    actions: List[dict] = json.load(f)
-    for action in actions:
-        action_name, arg_names = parse_action_signature(action['ActionTemplate'])
-        action_arg_names[action_name] = arg_names
-        if action_name not in actions_count:
-            actions_count[action_name] = 0
-        actions_count[action_name] += 1
-
-# region load user's roles
-with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
-    roles: List[dict] = json.load(f)
-
-roles_available = len(roles)
-# endregion
-
-# region load npc's role
-npc_role = {}
-with open(f"{npc_desc_f_path}", "r", encoding="utf-8") as f:
-    npc_role.update(json.load(f))
-# endregion
-
-for action in actions:
-    user_requests = []
-    action_name, arg_names = parse_action_signature(action['ActionTemplate'])
-    usr_state_template = action['UsrStateTemplate']
-    npc_state_template = action['NpcStateTemplate']
-    action_params = action.get('Parameters', {})
-
-    matches = re.findall(r"\{\{\s*(.*?)\s*\}\}", action['RequestTemplate'])
-
-    r: List = []
-    for match in matches:
-        pairs = []
-        for arg in action_params.get(match, []):
-            kv = ( match, arg )
-            pairs.append(kv)
-        if pairs:
-            r.append( pairs )
-
-    combinations = list(itertools.product(*r))
-
-    request_combinations_count = len(combinations)
-    dataset_size_per_request_combinations = math.ceil(DATASET_SIZE_PER_ACTION / request_combinations_count)
-
-    current_actions_count = actions_count[action_name]
-
-# region calculate dataset chunk parameters
+def calculate_roles_and_request_amount(
+        current_actions_count: int,
+        params_combination_count: int,
+        max_roles_count: int,
+) -> Tuple[int, int]:
     solutions = calculate_dataset_params(
         dataset_size=DATASET_SIZE_PER_ACTION,
 
         actions=current_actions_count,
-        params=len(combinations),
+        params=params_combination_count,
 
-        roles_min=5,
-        roles_max=roles_available,
+        roles_min=1,
+        roles_max=max_roles_count,
         queries_min=5,
-        queries_max=50,
+        queries_max=MAX_QUERIES_PER_ACTION_CHUNK,
         tolerance=0.05
     )
-
-    target_roles_count = 0
-    target_queries_count = 0
 
     if solutions:
         target_roles_count = solutions[0]["roles"]
         target_queries_count = solutions[0]["queries"]
+    else:
+        target_roles_count = max_roles_count
+        target_queries_count = MAX_QUERIES_PER_ACTION_CHUNK
+        print(f"=== Warning. Didn't calculate proper roles and requests ===")
 
-    if not target_roles_count or not target_queries_count:
-        exit(1)
-# endregion
+    return target_roles_count, target_queries_count
 
-    print(f'*** Current action {action_name}. Total: {target_queries_count * target_roles_count * len(combinations)}')
-    print(f'Roles: {target_roles_count} Requests: {target_queries_count} Params: {len(combinations)}')
+def main():
+    actions_count = {}
 
-    roles = roles[:target_roles_count]
+    roles = get_roles()
 
-    for combination in combinations:
-        params = {}
-        target_params = []
-        for c in combination:
-            k, v = c
-            target_params.append(f'{k}: {v}')
-            params.update({k: v})
+    with open(actions_f_path) as f:
+        for npc_data in json.load(f):
+            if npc_data['Name'] == npc_name:
+                actions_template_data = npc_data['ActionData']
+                npc_description = extract_nsloctext_value(npc_data['Description'])
 
-        action_args = {}
-        for k, v in params.items():
-            if action_name in action_arg_names:
-                args_names = action_arg_names[action_name]
-                if k in args_names:
-                    action_args[k] = v
+                for action_template_data in actions_template_data:
+                    action_name, arg_names = parse_action_signature(action_template_data['ActionTemplate'])
+                    if action_name not in actions_count:
+                        actions_count[action_name] = 0
+                    actions_count[action_name] += 1
 
-        target_params_str = ', '.join(target_params)
+                for action_template_data in actions_template_data:
+                    requests_per_action = []
 
-        for player_role in roles:
-            prompt = build_system_prompt(
-                action=action,
-                player_role=player_role,
-                npc_role=npc_role,
-                target_parameters=target_params_str,
-                num_requests=target_queries_count
-            )
+                    action_name, arg_names = parse_action_signature(action_template_data['ActionTemplate'])
 
-            helper = OllamaHelper(OLLAMA_HOST)
-            requests_str, think = helper.generate(MODEL, prompt)
+                    t_str = json.dumps(action_template_data)
+                    context = build_action_template_params(action_template_data)
+                    request_combinations = render_template(t_str, context)
 
-            try:
-                requests: Set[str] = set(json.loads(requests_str))
-                for request in requests:
-                    usr_state = env.from_string(usr_state_template).render(**params)
-                    npc_state = env.from_string(npc_state_template).render(**params)
+                    current_actions_count = actions_count[action_name]
+                    request_combination_count = len(request_combinations)
+                    max_roles_count = len(roles)
 
-                    result = unidecode(request)
-                    result = result.replace('--', '-')
-                    request_with_states = {
-                        "request": result,
-                        "usr_state": usr_state,
-                        "npc_state": npc_state,
-                        "params": action_args,
-                    }
-                    user_requests.append(request_with_states)
-                    print(f'{action_name} [{len(user_requests)}/{DATASET_SIZE_PER_ACTION}] {result}')
-            except Exception as e:
-                print(e)
+                    roles_amount, requests_amount = calculate_roles_and_request_amount(
+                        current_actions_count=current_actions_count,
+                        params_combination_count=request_combination_count,
+                        max_roles_count=max_roles_count,
+                    )
 
-    save_dict_records_to_jsonl(
-        user_requests,
-        f'{action_name}.jsonl',
-        folder_path=f'output_data/',
-        append=True
-    )
+                    roles = roles[:roles_amount]
 
-print('====')
+                    print(f'=== roles: {roles_amount} requests_amount: {requests_amount} params_combination_amount: {request_combination_count} current_actions_amount: {current_actions_count} ===')
+                    print(f'=== Total: {roles_amount * requests_amount * request_combination_count * current_actions_count} ===')
+
+                    for role in roles:
+                        for rc in request_combinations:
+                            if rc:
+                                request_json = json.loads(rc)
+                                action_data_str = request_json['ActionTemplate']
+                                action_name, args = parse_action_signature(action_data_str)
+
+                                npc_state = request_json['NpcStateTemplate']
+                                usr_state = request_json['UsrStateTemplate']
+
+                                request_template = request_json['RequestTemplate']
+                                print()
+                                print(f'--- Request Template: {request_template} ---')
+                                print(f'--- Target NPC action: {action_data_str} ---')
+
+                                prompt = build_system_prompt(
+                                    request_example=request_json['RequestTemplate'],
+                                    action=action_data_str,
+                                    target_parameters=str.join(', ', args),
+                                    player_role=role,
+                                    npc_role=npc_description,
+                                    num_requests=requests_amount
+                                )
+                                MAX_ATTEMPTS = 5
+                                attempt_count = 0
+
+                                while attempt_count < MAX_ATTEMPTS:
+                                    try:
+                                        helper = OllamaHelper(OLLAMA_HOST)
+                                        requests_str, think = helper.generate(MODEL, prompt)
+                                        result = unidecode(requests_str)
+                                        result = result.replace('--', '-')
+                                        requests = json.loads(result)
+                                        for request in requests:
+                                            is_ok = True
+                                            for target_parameter in args:
+                                                if target_parameter.lower() not in request.lower():
+                                                    is_ok = False
+                                                    break
+                                            if not is_ok:
+                                                print(f'    === WARNING Request: {request} ===')
+                                            else:
+                                                print(f'    === Request: {request} ===')
+
+                                            args_dict = {}
+                                            for i in range(len(arg_names)):
+                                                args_dict[arg_names[i]] = args[i]
+
+                                            usr_request = {
+                                                "request": request,
+                                                "usr_state": usr_state,
+                                                "npc_state": npc_state,
+                                            }
+
+                                            npc_valid_action = {
+                                                "emotion": "",
+                                                "answer": "",
+                                                "think": "",
+                                                "action": {
+                                                    "name": action_name,
+                                                    "parameters": args_dict
+                                                }
+                                            }
+
+                                            request_per_action = {
+                                                'usr_request': usr_request,
+                                                'npc_valid_action': npc_valid_action,
+                                            }
+
+                                            requests_per_action.append(request_per_action)
+                                        break
+                                    except Exception as e:
+                                        attempt_count += 1
+                                        print(f'Error on LLM generation: {e}')
+                    target_dir = f'output_data/{npc_name}/0_generate_usr_requests'
+                    target_fname = f'{action_name}.jsonl'
+                    save_dict_records_to_jsonl(
+                        records=requests_per_action,
+                        output_file=target_fname,
+                        folder_path=target_dir,
+                        append=True
+                    )
+                    print()
+                    print(f'=== Action: {action_name} Requests: {len(requests_per_action)} ===')
+                    print(f'=== Saved to: {target_dir}/{target_fname} ===')
+                    print()
+                break
+
+
+if __name__ == "__main__":
+    main()

@@ -1,25 +1,14 @@
 import json
 import os
-import re
 from collections import defaultdict
 from jinja2 import Environment
-from common.helpers import is_env_var_true, save_text_file
+from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 
 env = Environment()
 
 GEN_ACTION_DESC_SP_F_PATH = os.getenv('GEN_ACTION_DESC_SP_F_PATH', '')
-
-def extract_nsloctext_value(text: str) -> str:
-    match = re.search(r'NSLOCTEXT\([^,]+,\s*[^,]+,\s*\"(.*)\"\)', text)
-    if not match:
-        return text
-
-    value = match.group(1)
-
-    value = value.encode('utf-8').decode('unicode_escape')
-
-    return value
+need_2_gen_action_desc = is_env_var_true('GENERATE_ACTION_DESC')
 
 def build_actions_rules(action_data):
     actions_params = {}
@@ -28,20 +17,16 @@ def build_actions_rules(action_data):
 
     for action in action_data['ActionData']:
         raw_name = action["ActionTemplate"]
-
-        clean_name = re.sub(r"\(\s*\{\{.*?\}\}\s*\)", "", raw_name)
-
-        param_keys = list(action["Parameters"].keys())
-        actions_params[clean_name] = param_keys
-        action_desc[clean_name] = action["Description"]
+        action_name, arg_names = parse_action_signature(raw_name)
+        actions_params[action_name] = arg_names
+        action_desc[action_name] = action["Description"] if need_2_gen_action_desc else ''
         for key, values in action["Parameters"].items():
-            param_groups[key].update(values)
+            if key in arg_names:
+                param_groups[key].update(values)
 
     lines = []
 
     for action_name, param_keys in actions_params.items():
-        if 'DoNothing' in action_name:
-            print('!')
         lines.append(f"{action_name}")
         if param_keys:
             lines.append(f"   parameters: {json.dumps([f'<{p}>' for p in param_keys])} where")
@@ -50,11 +35,12 @@ def build_actions_rules(action_data):
 
         for p in param_keys:
             lines.append(f"      <{p}> is one of AllowedParameters_{p}")
-        lines.append(f"   description: {action_desc[action_name]}")
+        if action_desc[action_name]:
+            lines.append(f"   description: {action_desc[action_name]}")
         lines.append("")
 
     for key, values in param_groups.items():
-        lines.append(f"AllowedParameters_{key}")
+        lines.append(f"AllowedParameters_{key}:")
         for v in sorted(values):
             lines.append(f"- {v}")
         lines.append("")
@@ -134,7 +120,7 @@ if __name__ == "__main__":
             sp = sp_template.render(params)
 
             save_text_file(
-                folder_path=f"output_data/{npc_data['Name']}",
+                folder_path=f"output_data/{npc_data['Name']}/1_generate_usr_requests",
                 filename="system_prompt.txt",
                 content=sp
             )

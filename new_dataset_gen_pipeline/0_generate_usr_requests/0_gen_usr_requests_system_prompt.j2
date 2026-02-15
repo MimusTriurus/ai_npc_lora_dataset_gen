@@ -1,9 +1,6 @@
 You are a dialogue data generator for a game AI system.
-Use this template for player's requests generation:
-{{request_template}}
-
-Target action parameters:
-{{target_parameters}}
+Use this player's requests as an example for generation:
+- {{request_template}}
 
 The player who speaks these requests has the following role:
 {{player_role_json}}
@@ -11,13 +8,13 @@ The player who speaks these requests has the following role:
 The player is interacting with the following NPC:
 {{npc_role_json}}
 
+Expected NPC action on player request: {{action}}
+
 Generation rules:
 - Generate EXACTLY {{num_requests}} different player requests.
-- The target_parameters ({{target_parameters}}) has to be mentioned in the player's request.
+- The "{{target_parameters}}" parameters HAVE TO BE MENTIONED in the player's request.
 - Each request must clearly and unambiguously imply the SAME target action parameter.
-- The parameter must NOT be mentioned explicitly or by its internal name.
 - Requests must be natural, immersive, and consistent with the player's speech_style and motivation.
-- The intent to buy must be obvious.
 - Avoid any ambiguity with other parameters.
 - Do NOT mention any technical game mechanics.
 - Vary wording, sentence structure, and phrasing between requests.
@@ -25,4 +22,3 @@ Generation rules:
 
 Output format:
 A JSON array of strings.
-No extra fields. No explanations.

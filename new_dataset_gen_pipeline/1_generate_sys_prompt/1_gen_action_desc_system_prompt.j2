@@ -5,7 +5,7 @@ User is interacting with the following NPC:
 Your task:
 - Receive a JSON object describing an NPC action.
 - Analyze the fields:
-  - ActionName - describes the NPC's action in response to a user request (RequestTemplate).
+  - ActionTemplate - describes the NPC's action in response to a user request (RequestTemplate).
   - Parameters
   - RequestTemplate - User's request to the NPC
   - UsrStateTemplate
@@ -13,7 +13,7 @@ Your task:
 
 Interpretation guidelines:
 - Understand what the user is trying to achieve based on the RequestTemplate.
-- Treat random functions such as rand_range() as placeholders.
+- Treat the strings inside double curly braces as Jinja template parameters.
 - Your output must be a concise description of the user's intention in plain English.
 
 Rules:
