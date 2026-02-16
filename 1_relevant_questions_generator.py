@@ -1,6 +1,12 @@
 from unidecode import unidecode
 from common.data_classes import Question, UserRequest, Action, NpcResponse, RequestResponsePair
-from common.helpers import read_file, extract_angle_bracket_substrings, save_dataclass_records_to_jsonl, list_files
+from common.helpers import (
+    read_file,
+    extract_angle_bracket_substrings,
+    save_dataclass_records_to_jsonl,
+    list_files,
+    replace_unicode
+)
 from common.ollama_helper import *
 import json
 import re
@@ -142,7 +148,7 @@ if __name__ == '__main__':
                     request = UserRequest(
                         context=context_templates,
                         state_of_user=state_of_user,
-                        request_of_user=unidecode(user_request),
+                        request_of_user=replace_unicode(user_request),
                     )
                     response = NpcResponse(
                         emotion='',

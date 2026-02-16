@@ -7,7 +7,8 @@ from common.helpers import (
     calculate_dataset_params,
     extract_nsloctext_value,
     save_dict_records_to_jsonl,
-    parse_action_signature
+    parse_action_signature,
+    replace_unicode
 )
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 from common.template_gen_components import env, build_action_template_params, render_template
@@ -165,8 +166,7 @@ def main():
                                     try:
                                         helper = OllamaHelper(OLLAMA_HOST)
                                         requests_str, think = helper.generate(MODEL, prompt)
-                                        result = unidecode(requests_str)
-                                        result = result.replace('--', '-')
+                                        result = replace_unicode(requests_str)
                                         requests = set(json.loads(result))
                                         if len(requests) < requests_amount:
                                             print(f'    === WARNING Generated amount requests is less than necessary: {len(requests)} < {requests_amount}')

@@ -1,7 +1,10 @@
 import json
 import os
+from dataclasses import asdict
+
 from common.data_structures import *
-from common.helpers import list_files, load_jsonl_to_dataclasses, extract_nsloctext_value
+from common.helpers import list_files, load_jsonl_to_dataclasses, extract_nsloctext_value, save_dict_records_to_jsonl, \
+    replace_unicode
 from common.ollama_helper import MODEL, OLLAMA_HOST, OllamaHelper
 from common.template_gen_components import env
 
@@ -28,8 +31,8 @@ if __name__ == '__main__':
     with open(actions_desc_f_path) as f:
         actions_desc.update(json.loads(f.read()))
 
-    usr_request_f_lst = list_files(usr_requests_dir_path)
-    for usr_request_f in usr_request_f_lst:
+    usr_requests_by_actions_f_lst = list_files(usr_requests_dir_path)
+    for usr_request_f in usr_requests_by_actions_f_lst:
         is_ok = True
         for prohibited_f in black_list_for_usr_request:
             if prohibited_f and prohibited_f in usr_request_f:
@@ -38,6 +41,8 @@ if __name__ == '__main__':
                 break
         if not is_ok:
             continue
+
+        out_requests = []
 
         player_requests = load_jsonl_to_dataclasses(usr_request_f, Root)
 
@@ -70,8 +75,27 @@ if __name__ == '__main__':
             inference_system_prompt = pr_template.render(template_params)
 
             helper = OllamaHelper(OLLAMA_HOST)
-            requests_str, think = helper.generate(MODEL, inference_system_prompt)
+            response_str, think = helper.generate(MODEL, inference_system_prompt)
+            response = json.loads(response_str)
 
-            print(inference_system_prompt)
+            pr.npc_valid_action['emotion'] = response['emotion']
+            pr.npc_valid_action['answer'] = replace_unicode(response['answer'])
 
-        print('')
+            dataset_record = asdict(pr)
+
+            out_requests.append(dataset_record)
+
+            print(f'USR: {pr.usr_request["request"]}')
+            print(f'--- ACTION: {npc_action_str} ---')
+            print(f'NPC: {response["answer"]}')
+            print()
+
+        target_dir = f'output_data/{npc_name}/2_generate_npc_answers'
+        target_fname = os.path.basename(usr_request_f)
+
+        save_dict_records_to_jsonl(
+            records=list(out_requests),
+            output_file=target_fname,
+            folder_path=target_dir,
+            append=True
+        )

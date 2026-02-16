@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 from dataclasses import is_dataclass
 from typing import List, Type, TypeVar, Dict, Iterable, Set, Any, Tuple
+
+from unidecode import unidecode
+
 from common.data_classes import Action, Question
 import os
 import glob
@@ -341,3 +344,8 @@ def parse_action_signature(signature: str) -> Tuple[str, List[str]]:
         return action_name, raw_params
 
     return action_name, cleaned_params
+
+def replace_unicode(requests_str: str) -> str:
+    result = unidecode(requests_str)
+    result = result.replace('--', '-')
+    return result

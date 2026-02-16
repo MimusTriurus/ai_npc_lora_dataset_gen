@@ -21,7 +21,7 @@ class Action:
     def __str__(self):
         parameters_str = ""
         for key, value in self.parameters.items():
-            parameters_str += f"{key}={value}, "
+            parameters_str += f'{key}="{value}", '
         if parameters_str:
             parameters_str = parameters_str[:-2]
         return f'{self.name}({parameters_str})'
