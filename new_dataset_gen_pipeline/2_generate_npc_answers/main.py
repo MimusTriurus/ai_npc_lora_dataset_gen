@@ -2,34 +2,45 @@ import json
 import os
 from dataclasses import asdict
 
+from prefect import task
+
 from common.data_structures import *
-from common.helpers import list_files, load_jsonl_to_dataclasses, extract_nsloctext_value, save_dict_records_to_jsonl, \
-    replace_unicode
+from common.helpers import (
+    list_files,
+    load_jsonl_to_dataclasses,
+    extract_nsloctext_value,
+    save_dict_records_to_jsonl,
+    replace_unicode, load_jsonl_to_dict
+)
 from common.ollama_helper import MODEL, OLLAMA_HOST, OllamaHelper
 from common.template_gen_components import env
 
-usr_requests_dir_path = os.getenv('USR_REQUESTS_DIR_PATH', '')
 black_list_for_usr_request = os.getenv('BLACK_LIST_FOR_USR_REQUESTS', '').split(',')
 answer_gen_sp_template_f_path = os.getenv('ANSWER_GEN_SP_TEMPLATE_F_PATH', '')
-actions_f_path = os.getenv('ACTIONS_F_PATH', '')
-actions_desc_f_path = os.getenv('ACTIONS_DESC_F_PATH', '')
-npc_name = os.getenv('NPC_NAME', '')
 
-if __name__ == '__main__':
+@task
+def main(git_commit, npc_name):
     answer_gen_sp_template = ''
     with open(answer_gen_sp_template_f_path, 'r', encoding='utf-8') as f:
         answer_gen_sp_template += f.read()
 
     npc_description = ''
 
+    actions_f_path = f'input_data/{git_commit}/{npc_name}/description.json'
+
     with open(actions_f_path) as f:
-        for npc_data in json.load(f):
-            if npc_data['Name'] == npc_name:
-                npc_description = extract_nsloctext_value(npc_data['Description'])
+        npc_data = json.load(f)
+        if npc_data['Name'] == npc_name:
+            npc_description = extract_nsloctext_value(npc_data['Description'])
 
     actions_desc: Dict[str, str] = {}
+
+    actions_desc_f_path = f'input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data/actions_desc.json'
+
     with open(actions_desc_f_path) as f:
         actions_desc.update(json.loads(f.read()))
+
+    usr_requests_dir_path = f'input_data/{git_commit}/{npc_name}/0_generate_usr_requests/*.jsonl'
 
     usr_requests_by_actions_f_lst = list_files(usr_requests_dir_path)
     for usr_request_f in usr_requests_by_actions_f_lst:
@@ -44,19 +55,19 @@ if __name__ == '__main__':
 
         out_requests = []
 
-        player_requests = load_jsonl_to_dataclasses(usr_request_f, Root)
+        player_requests = load_jsonl_to_dict(usr_request_f)
 
         pr_template = env.from_string(answer_gen_sp_template)
         for pr in player_requests:
             action_obj = Action(
-                name=pr.npc_valid_action['action']['name'],
-                parameters=pr.npc_valid_action['action']['parameters'],
+                name=pr['npc_response']['action']['name'],
+                parameters=pr['npc_response']['action']['parameters'],
             )
 
             player_role_obj = PlayerRole(
-                name=pr.player_role['name'],
-                description=pr.player_role['description'],
-                speech_style=pr.player_role['speech_style'],
+                name=pr['player_role']['name'],
+                description=pr['player_role']['description'],
+                speech_style=pr['player_role']['speech_style'],
             )
 
             action_name: str = action_obj.name
@@ -67,7 +78,7 @@ if __name__ == '__main__':
             template_params = {
                 'npc_description': npc_description,
                 'player_role': player_role_str,
-                'player_request': json.dumps(pr.usr_request, indent=2),
+                'player_request': pr['usr_request'],
                 'player_intention': player_intention_str,
                 'npc_action_str': npc_action_str,
             }
@@ -78,19 +89,17 @@ if __name__ == '__main__':
             response_str, think = helper.generate(MODEL, inference_system_prompt)
             response = json.loads(response_str)
 
-            pr.npc_valid_action['emotion'] = response['emotion']
-            pr.npc_valid_action['answer'] = replace_unicode(response['answer'])
+            pr['npc_response']['emotion'] = response['emotion']
+            pr['npc_response']['answer'] = replace_unicode(response['answer'])
 
-            dataset_record = asdict(pr)
+            out_requests.append(pr)
 
-            out_requests.append(dataset_record)
-
-            print(f'USR: {pr.usr_request["request"]}')
+            print(f'USR: {pr["usr_request"]["request"]}')
             print(f'--- ACTION: {npc_action_str} ---')
             print(f'NPC: {response["answer"]}')
             print()
 
-        target_dir = f'output_data/{npc_name}/2_generate_npc_answers'
+        target_dir = f'input_data/{git_commit}/{npc_name}/2_generate_npc_answers'
         target_fname = os.path.basename(usr_request_f)
 
         save_dict_records_to_jsonl(
@@ -99,3 +108,8 @@ if __name__ == '__main__':
             folder_path=target_dir,
             append=True
         )
+
+if __name__ == '__main__':
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    NPC_NAME = "trader"
+    exit(main(git_commit=COMMIT, npc_name=NPC_NAME))

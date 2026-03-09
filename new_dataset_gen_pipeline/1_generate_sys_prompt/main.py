@@ -5,6 +5,8 @@ from collections import defaultdict
 from typing import Dict
 
 from jinja2 import Environment
+from prefect import task
+
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 
@@ -99,8 +101,9 @@ def generate_action_description(npc_data: dict):
         action_description, think = helper.generate(MODEL, sp)
         action['Description'] = action_description
 
-if __name__ == "__main__":
-    NPC_DESC_F_PATH = os.getenv("NPC_DESC_F_PATH")
+@task
+def main(git_commit: str, npc_name: str):
+    NPC_DESC_F_PATH = f'input_data/{git_commit}/{npc_name}/description.json'
     INFERENCE_SP_F_PATH = os.getenv("INFERENCE_SP_F_PATH")
 
     SYSTEM_PROMPT_TEMPLATE = ''
@@ -110,32 +113,35 @@ if __name__ == "__main__":
 
     with open(NPC_DESC_F_PATH, "r", encoding="utf-8") as f:
         npcs_desc = json.load(f)
-        for npc_data in npcs_desc:
-            desc = npc_data["Description"]
-            npc_data['Description'] = extract_nsloctext_value(npc_data['Description'])
-            if is_env_var_true('GENERATE_ACTION_DESC'):
-                generate_action_description(npc_data)
-            actions_rules = build_actions_rules(npc_data)
-            params = {
-                "npc": npc_data['Description'],
-                "actions_rules": actions_rules
-            }
-            sp = sp_template.render(params)
+        npcs_desc['Description'] = extract_nsloctext_value(npcs_desc['Description'])
+        if is_env_var_true('GENERATE_ACTION_DESC'):
+            generate_action_description(npcs_desc)
+        actions_rules = build_actions_rules(npcs_desc)
+        params = {
+            "npc": npcs_desc['Description'],
+            "actions_rules": actions_rules
+        }
+        sp = sp_template.render(params)
 
-            actions_desc: Dict[str, str] = dict()
-            for action in npc_data["ActionData"]:
-                action_name, action_args = parse_action_signature(action["ActionTemplate"])
-                action_desc = action["Description"]
-                actions_desc[action_name] = action_desc
+        actions_desc: Dict[str, str] = dict()
+        for action in npcs_desc["ActionData"]:
+            action_name, action_args = parse_action_signature(action["ActionTemplate"])
+            action_desc = action["Description"]
+            actions_desc[action_name] = action_desc
 
-            save_text_file(
-                folder_path=f"output_data/{npc_data['Name']}/1_generate_system_prompt_data",
-                filename="actions_desc.json",
-                content=json.dumps(actions_desc, indent=2)
-            )
+        save_text_file(
+            folder_path=f"input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data",
+            filename="actions_desc.json",
+            content=json.dumps(actions_desc, indent=2)
+        )
 
-            save_text_file(
-                folder_path=f"output_data/{npc_data['Name']}/1_generate_system_prompt_data",
-                filename="system_prompt.txt",
-                content=sp
-            )
+        save_text_file(
+            folder_path=f"input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data",
+            filename="system_prompt.txt",
+            content=sp
+        )
+
+if __name__ == "__main__":
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    NPC_NAME = "trader"
+    exit(main(git_commit=COMMIT, npc_name=NPC_NAME))

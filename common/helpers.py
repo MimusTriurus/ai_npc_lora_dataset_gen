@@ -248,6 +248,24 @@ def load_jsonl_to_dataclasses(
 
     return records
 
+
+def load_jsonl_to_dict(
+    input_file: str
+) -> List[T]:
+    path = Path(input_file)
+    records: List[T] = []
+
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            data = json.loads(line)
+            records.append(data)
+
+    return records
+
 def extract_angle_bracket_substrings(text: str):
     return re.findall(r"<[^>]*>", text)
 
