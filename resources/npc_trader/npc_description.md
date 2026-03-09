@@ -1,1 +1,0 @@
-The Merchant (Human). Traits: Charismatic, smiling, weapons expert.

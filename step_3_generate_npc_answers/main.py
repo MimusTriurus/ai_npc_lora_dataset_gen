@@ -1,16 +1,17 @@
 import json
 import os
-from dataclasses import asdict
+from typing import Dict
 
 from prefect import task
 
-from common.data_structures import *
+from common.data_classes import Action, PlayerRole
 from common.helpers import (
     list_files,
     load_jsonl_to_dataclasses,
     extract_nsloctext_value,
     save_dict_records_to_jsonl,
-    replace_unicode, load_jsonl_to_dict
+    replace_unicode,
+    load_jsonl_to_dict
 )
 from common.ollama_helper import MODEL, OLLAMA_HOST, OllamaHelper
 from common.template_gen_components import env
@@ -19,7 +20,7 @@ black_list_for_usr_request = os.getenv('BLACK_LIST_FOR_USR_REQUESTS', '').split(
 answer_gen_sp_template_f_path = os.getenv('ANSWER_GEN_SP_TEMPLATE_F_PATH', '')
 
 @task
-def main(git_commit, npc_name):
+def process(git_commit, npc_name):
     answer_gen_sp_template = ''
     with open(answer_gen_sp_template_f_path, 'r', encoding='utf-8') as f:
         answer_gen_sp_template += f.read()
@@ -112,4 +113,4 @@ def main(git_commit, npc_name):
 if __name__ == '__main__':
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = "trader"
-    exit(main(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))

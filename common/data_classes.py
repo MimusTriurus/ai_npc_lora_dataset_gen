@@ -25,7 +25,6 @@ class Action:
     def __eq__(self, other):
         return self.name == other.name and self.parameters == other.parameters
 
-
 @dataclass
 class Question:
     template: str
@@ -83,3 +82,12 @@ class RequestResponsePair:
 
     def is_valid(self) -> bool:
         return self.npc_response.answer != ""
+
+@dataclass
+class PlayerRole:
+    name: str
+    description: str
+    speech_style: str
+
+    def __str__(self):
+        return f'Name: {self.name}\nDescription: {self.description}\nSpeech style: {self.speech_style}'

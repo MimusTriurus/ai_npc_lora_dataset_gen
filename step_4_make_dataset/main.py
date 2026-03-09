@@ -3,8 +3,6 @@ import os
 import random
 
 from prefect import task
-
-from common.data_structures import *
 from common.helpers import (
     list_files,
     load_jsonl_to_dataclasses,
@@ -34,7 +32,7 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     return base
 
 @task
-def main(git_commit: str, npc_name: str):
+def process(git_commit: str, npc_name: str):
     inference_sp = ''
 
     sp_f_path = f'input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data/system_prompt.txt'
@@ -95,4 +93,4 @@ def main(git_commit: str, npc_name: str):
 if __name__ == '__main__':
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = "trader"
-    exit(main(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))

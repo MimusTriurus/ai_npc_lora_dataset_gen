@@ -58,20 +58,14 @@ def build_unreal_project():
     run(cmd)
 
 
-def extract_npc_from_dataasset(npc_lst: List[str], git_commit: str):
+def extract_npc_from_dataasset(npc_name: str, git_commit: str):
     output_dir = f'input_data/{git_commit}/'
 
     absolute_dir_path = Path(output_dir).resolve().as_posix()
 
     os.makedirs(absolute_dir_path, exist_ok=True)
 
-    EXPORT_ARGS = [
-        "--output_dir", absolute_dir_path,
-    ]
-
-    for npc in npc_lst:
-        EXPORT_ARGS.append(f"--npc")
-        EXPORT_ARGS.append(npc)
+    EXPORT_ARGS = ["--output_dir", absolute_dir_path, f"--npc", npc_name]
 
     script_arg = EXPORT_SCRIPT
 
@@ -88,15 +82,14 @@ def extract_npc_from_dataasset(npc_lst: List[str], git_commit: str):
     run(cmd)
 
 @task()
-def main(git_commit: str, npc_list: List[str]):
+def process(git_commit: str, npc_name: str):
     ensure_repo()
     update_repo()
     checkout_commit(git_commit=git_commit)
     build_unreal_project()
-    extract_npc_from_dataasset(npc_lst=npc_list, git_commit=git_commit)
-
+    extract_npc_from_dataasset(npc_name=npc_name, git_commit=git_commit)
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
-    NPC_LIST = ['trader']
-    exit(main(git_commit=COMMIT, npc_list=NPC_LIST))
+    NPC_NAME = 'trader'
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))
