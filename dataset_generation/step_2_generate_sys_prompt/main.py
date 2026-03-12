@@ -4,11 +4,17 @@ import sys
 from collections import defaultdict
 from typing import Dict
 
+from dotenv import load_dotenv
 from jinja2 import Environment
 from prefect import task
 
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+
+env_path = 'dataset_generation/step_2_generate_sys_prompt/.env'
+if not load_dotenv(env_path, override=True):
+    print(f"Can't find .env file. {env_path}")
+    exit(1)
 
 env = Environment()
 
@@ -102,8 +108,8 @@ def generate_action_description(npc_data: dict):
         action['Description'] = action_description
 
 @task
-def process(git_commit: str, npc_name: str):
-    NPC_DESC_F_PATH = f'input_data/{git_commit}/{npc_name}/description.json'
+def process(git_commit: str, npc_name: str, flow_run_id: str):
+    NPC_DESC_F_PATH = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/description.json'
     INFERENCE_SP_F_PATH = os.getenv("INFERENCE_SP_F_PATH")
 
     SYSTEM_PROMPT_TEMPLATE = ''
@@ -130,13 +136,13 @@ def process(git_commit: str, npc_name: str):
             actions_desc[action_name] = action_desc
 
         save_text_file(
-            folder_path=f"input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data",
+            folder_path=f"input_data/{git_commit}/{npc_name}/{flow_run_id}/1_generate_system_prompt_data",
             filename="actions_desc.json",
             content=json.dumps(actions_desc, indent=2)
         )
 
         save_text_file(
-            folder_path=f"input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data",
+            folder_path=f"input_data/{git_commit}/{npc_name}/{flow_run_id}/1_generate_system_prompt_data",
             filename="system_prompt.txt",
             content=sp
         )
@@ -144,4 +150,4 @@ def process(git_commit: str, npc_name: str):
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))

@@ -1,15 +1,21 @@
 from typing import List
-
+from dotenv import load_dotenv
 from prefect import task
 import subprocess
 import os
 from pathlib import Path
 
+env_path = 'dataset_generation/step_0_get_npc_desc/.env'
+if not load_dotenv(env_path, override=True):
+    print(f"Can't find .env file. {env_path}")
+    exit(1)
+
 # region vars
 REPO_ULLAMA_URL = os.getenv('REPO_ULLAMA_URL')
 REPO_ULLAMA_PLUGIN_URL = os.getenv('REPO_ULLAMA_PLUGIN_URL')
 UE_DIR_PATH = os.getenv('UE_DIR_PATH')
-PROJECT_DIR = Path(os.getenv('PROJECT_DIR')).resolve()
+PROJECT_DIR = os.getenv('PROJECT_DIR')
+PROJECT_DIR = Path(PROJECT_DIR).resolve()
 PROJECT_F_NAME = os.getenv('PROJECT_F_NAME')
 BRANCH = os.getenv('BRANCH')
 # endregion
@@ -58,14 +64,18 @@ def build_unreal_project():
     run(cmd)
 
 
-def extract_npc_from_dataasset(npc_name: str, git_commit: str):
+def extract_npc_from_dataasset(npc_name: str, git_commit: str, flow_run_id: str):
     output_dir = f'input_data/{git_commit}/'
 
     absolute_dir_path = Path(output_dir).resolve().as_posix()
 
     os.makedirs(absolute_dir_path, exist_ok=True)
 
-    EXPORT_ARGS = ["--output_dir", absolute_dir_path, f"--npc", npc_name]
+    EXPORT_ARGS = [
+        "--output_dir", absolute_dir_path,
+        "--npc", npc_name,
+        "--flow_run_id", flow_run_id,
+    ]
 
     script_arg = EXPORT_SCRIPT
 
@@ -82,14 +92,14 @@ def extract_npc_from_dataasset(npc_name: str, git_commit: str):
     run(cmd)
 
 @task()
-def process(git_commit: str, npc_name: str):
+def process(git_commit: str, npc_name: str, flow_run_id: str = None):
     ensure_repo()
     update_repo()
     checkout_commit(git_commit=git_commit)
     build_unreal_project()
-    extract_npc_from_dataasset(npc_name=npc_name, git_commit=git_commit)
+    extract_npc_from_dataasset(npc_name=npc_name, git_commit=git_commit, flow_run_id=flow_run_id)
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = 'trader'
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))

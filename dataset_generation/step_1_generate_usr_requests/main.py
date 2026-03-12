@@ -2,6 +2,7 @@ import json
 import os
 from typing import List, Tuple, Dict
 
+from dotenv import load_dotenv
 from prefect import task
 
 from common.helpers import (
@@ -13,6 +14,11 @@ from common.helpers import (
 )
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
 from common.template_gen_components import env, build_action_template_params, render_template
+
+env_path = 'dataset_generation/step_1_generate_usr_requests/.env'
+if not load_dotenv(env_path, override=True):
+    print(f"Can't find .env file. {env_path}")
+    exit(1)
 
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
 MAX_QUERIES_PER_ACTION_CHUNK = 50
@@ -29,13 +35,11 @@ def get_system_prompt_template() -> str:
     with open(sp_template_f_path, "r", encoding="utf-8") as f:
         return f.read()
 
-def get_npc_data(git_commit: str, npc_name: str) -> dict:
-    npc_desc_f_path = f'input_data/{git_commit}/{npc_name}/description.json'
+def get_npc_data(git_commit: str, npc_name: str, flow_run_id: str) -> dict:
+    npc_desc_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/description.json'
     with open(npc_desc_f_path, "r", encoding="utf-8") as f:
         npc_data = json.load(f)
         return npc_data
-
-SYSTEM_PROMPT_TEMPLATE = get_system_prompt_template()
 
 def build_system_prompt(
     request_example: str,
@@ -45,6 +49,7 @@ def build_system_prompt(
     target_parameters: str,
     num_requests: int
 ) -> str:
+    SYSTEM_PROMPT_TEMPLATE = get_system_prompt_template()
     sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
     params = {
         "request_template": request_example,
@@ -86,12 +91,12 @@ def calculate_roles_and_request_amount(
     return target_roles_count, target_queries_count
 
 @task
-def process(git_commit: str, npc_name: str):
+def process(git_commit: str, npc_name: str, flow_run_id: str = None):
     actions_count = {}
 
     roles = get_roles()
 
-    npc_data = get_npc_data(git_commit, npc_name)
+    npc_data = get_npc_data(git_commit, npc_name, flow_run_id)
 
     actions_template_data = npc_data['ActionData']
     npc_description = extract_nsloctext_value(npc_data['Description'])
@@ -210,7 +215,7 @@ def process(git_commit: str, npc_name: str):
                             attempt_count += 1
                             print(f'Error on LLM generation: {e}')
 
-        target_dir = f'input_data/{git_commit}/{npc_name}/0_generate_usr_requests'
+        target_dir = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/0_generate_usr_requests'
         target_fname = f'{action_name}.jsonl'
 
         save_dict_records_to_jsonl(
@@ -228,4 +233,4 @@ def process(git_commit: str, npc_name: str):
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))

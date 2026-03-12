@@ -2,12 +2,12 @@ import json
 import os
 from typing import Dict
 
+from dotenv import load_dotenv
 from prefect import task
 
 from common.data_classes import Action, PlayerRole
 from common.helpers import (
     list_files,
-    load_jsonl_to_dataclasses,
     extract_nsloctext_value,
     save_dict_records_to_jsonl,
     replace_unicode,
@@ -16,18 +16,23 @@ from common.helpers import (
 from common.ollama_helper import MODEL, OLLAMA_HOST, OllamaHelper
 from common.template_gen_components import env
 
+env_path = 'dataset_generation/step_3_generate_npc_answers/.env'
+if not load_dotenv(env_path, override=True):
+    print(f"Can't find .env file. {env_path}")
+    exit(1)
+
 black_list_for_usr_request = os.getenv('BLACK_LIST_FOR_USR_REQUESTS', '').split(',')
 answer_gen_sp_template_f_path = os.getenv('ANSWER_GEN_SP_TEMPLATE_F_PATH', '')
 
 @task
-def process(git_commit, npc_name):
+def process(git_commit: str, npc_name: str, flow_run_id: str):
     answer_gen_sp_template = ''
     with open(answer_gen_sp_template_f_path, 'r', encoding='utf-8') as f:
         answer_gen_sp_template += f.read()
 
     npc_description = ''
 
-    actions_f_path = f'input_data/{git_commit}/{npc_name}/description.json'
+    actions_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/description.json'
 
     with open(actions_f_path) as f:
         npc_data = json.load(f)
@@ -36,12 +41,12 @@ def process(git_commit, npc_name):
 
     actions_desc: Dict[str, str] = {}
 
-    actions_desc_f_path = f'input_data/{git_commit}/{npc_name}/1_generate_system_prompt_data/actions_desc.json'
+    actions_desc_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/1_generate_system_prompt_data/actions_desc.json'
 
     with open(actions_desc_f_path) as f:
         actions_desc.update(json.loads(f.read()))
 
-    usr_requests_dir_path = f'input_data/{git_commit}/{npc_name}/0_generate_usr_requests/*.jsonl'
+    usr_requests_dir_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/0_generate_usr_requests/*.jsonl'
 
     usr_requests_by_actions_f_lst = list_files(usr_requests_dir_path)
     for usr_request_f in usr_requests_by_actions_f_lst:
@@ -100,7 +105,7 @@ def process(git_commit, npc_name):
             print(f'NPC: {response["answer"]}')
             print()
 
-        target_dir = f'input_data/{git_commit}/{npc_name}/2_generate_npc_answers'
+        target_dir = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/2_generate_npc_answers'
         target_fname = os.path.basename(usr_request_f)
 
         save_dict_records_to_jsonl(
@@ -113,4 +118,4 @@ def process(git_commit, npc_name):
 if __name__ == '__main__':
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
