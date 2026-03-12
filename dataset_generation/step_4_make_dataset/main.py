@@ -38,7 +38,7 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
-#@task
+@task
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
 

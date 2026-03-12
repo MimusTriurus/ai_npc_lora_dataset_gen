@@ -1,12 +1,11 @@
 from prefect import flow
-from dotenv import load_dotenv
 import dataset_generation.step_0_get_npc_desc.main as step_0_get_npc_desc
 import dataset_generation.step_1_generate_usr_requests.main as step_1_generate_usr_requests
 import dataset_generation.step_2_generate_sys_prompt.main as step_2_generate_sys_prompt
 import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_npc_answers
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
 
-#@flow(name="lora-dataset-and-training")
+@flow(name="lora-dataset-generation")
 def npc_lora_dataset_gen(
     git_commit: str,
     npc_name: str,
