@@ -39,7 +39,6 @@ def actions_dict_to_signatures(
 ) -> List[str]:
     result = []
     for action_name, params in actions.items():
-        # удалим дубликаты, сохраняя порядок
         params_unique = unique_stable(params)
 
         if params_unique:
@@ -49,7 +48,6 @@ def actions_dict_to_signatures(
             else:
                 signature = f"{action_name}({joined})"
         else:
-            # если параметров нет, вернём пустые скобки
             signature = f"{action_name}()"
 
         result.append(signature)
@@ -367,3 +365,15 @@ def replace_unicode(requests_str: str) -> str:
     result = unidecode(requests_str)
     result = result.replace('--', '-')
     return result
+
+def update_manifest(manifest_file_path: str, manifest: dict):
+    if os.path.exists(manifest_file_path):
+        with open(manifest_file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    data.update(manifest)
+
+    with open(manifest_file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)

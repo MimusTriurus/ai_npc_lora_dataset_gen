@@ -1,0 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.9.1+cu128
+torchvision==0.24.1+cu128
+torchaudio==2.9.1+cu128
+transformers==4.57.3
+trl==0.9.6
+peft>=0.11.1
+accelerate==1.12.0
+datasets==3.0.1
+bitsandbytes>=0.49.0
+rich==14.2.0
+prefect>=3.6.17
+hf_xet>=1.4.2
+Unidecode>=1.4.0
+transformers>=4.51.0
+accelerate
+bitsandbytes>=0.43.1
+datasets==3.0.1
+peft==0.11.1
+trl==0.9.6
+sentencepiece~=0.2.0

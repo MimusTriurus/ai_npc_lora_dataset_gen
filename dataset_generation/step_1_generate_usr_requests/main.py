@@ -5,6 +5,7 @@ from typing import List, Tuple, Dict
 from dotenv import load_dotenv
 from prefect import task
 
+from common.constants import DATA_DIR_NAME, GEN_USR_REQUEST_DIR_NAME
 from common.helpers import (
     calculate_dataset_params,
     extract_nsloctext_value,
@@ -23,8 +24,8 @@ if not load_dotenv(env_path, override=True):
 DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
 MAX_QUERIES_PER_ACTION_CHUNK = 50
 
-sp_template_f_path = os.getenv('SP_TEMPLATE_F_PATH', '')
-usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', '')
+sp_template_f_path = os.getenv('SP_TEMPLATE_F_PATH', 'dataset_generation/step_1_generate_usr_requests/gen_usr_requests_system_prompt.j2')
+usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', f'{DATA_DIR_NAME}/user_roles.json')
 
 def get_roles() -> List[dict]:
     with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
@@ -36,7 +37,7 @@ def get_system_prompt_template() -> str:
         return f.read()
 
 def get_npc_data(git_commit: str, npc_name: str, flow_run_id: str) -> dict:
-    npc_desc_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/description.json'
+    npc_desc_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
     with open(npc_desc_f_path, "r", encoding="utf-8") as f:
         npc_data = json.load(f)
         return npc_data
@@ -75,7 +76,7 @@ def calculate_roles_and_request_amount(
 
         roles_min=1,
         roles_max=max_roles_count,
-        queries_min=5,
+        queries_min=1,
         queries_max=MAX_QUERIES_PER_ACTION_CHUNK,
         tolerance=0.05
     )
@@ -171,7 +172,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str = None):
                             result = replace_unicode(requests_str)
                             requests = set(json.loads(result))
                             if len(requests) < requests_amount:
-                                print(f'    === WARNING Generated amount requests is less than necessary: {len(requests)} < {requests_amount}')
+                                error_message = f'Generated amount requests is less than necessary: {len(requests)} < {requests_amount}'
+                                raise ValueError(error_message)
+                            requests = list(requests)[:requests_amount]
                             for request in requests:
                                 is_ok = True
                                 for target_parameter in args:
@@ -215,7 +218,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str = None):
                             attempt_count += 1
                             print(f'Error on LLM generation: {e}')
 
-        target_dir = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/0_generate_usr_requests'
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_USR_REQUEST_DIR_NAME}'
         target_fname = f'{action_name}.jsonl'
 
         save_dict_records_to_jsonl(

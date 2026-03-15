@@ -18,7 +18,7 @@ if data_asset:
         out_dir_path = os.path.join(args.output_dir, npc, args.flow_run_id)
         out_f_path = os.path.join(out_dir_path, 'description.json')
         os.makedirs(out_dir_path, exist_ok=True)
-        with open(out_f_path, "w") as f:
+        with open(out_f_path, "w", newline="") as f:
             f.write(json)
 else:
     unreal.log_error("Can't load npc data asset")

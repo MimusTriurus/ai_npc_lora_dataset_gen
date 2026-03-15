@@ -5,6 +5,8 @@ import subprocess
 import os
 from pathlib import Path
 
+from common.constants import DATA_DIR_NAME
+
 env_path = 'dataset_generation/step_0_get_npc_desc/.env'
 if not load_dotenv(env_path, override=True):
     print(f"Can't find .env file. {env_path}")
@@ -65,7 +67,7 @@ def build_unreal_project():
 
 
 def extract_npc_from_dataasset(npc_name: str, git_commit: str, flow_run_id: str):
-    output_dir = f'input_data/{git_commit}/'
+    output_dir = f'{DATA_DIR_NAME}/{git_commit[:7]}/'
 
     absolute_dir_path = Path(output_dir).resolve().as_posix()
 

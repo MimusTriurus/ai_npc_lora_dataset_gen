@@ -47,43 +47,6 @@ class Question:
         }
 
 @dataclass
-class UserRequest:
-    context: str
-    state_of_user: str
-    request_of_user: str
-
-    def __dict__(self):
-        return {
-            "context": self.context,
-            "state_of_user": self.state_of_user,
-            "request_of_user": self.request_of_user,
-        }
-
-    def to_string(self):
-        request = {
-            'context': self.context,
-            'state_of_user': self.state_of_user,
-            'request_of_user': self.request_of_user,
-        }
-        result = json.dumps(request)
-        return result
-
-@dataclass
-class NpcResponse:
-    emotion: str
-    answer: str
-    think: str
-    action: Action
-
-@dataclass
-class RequestResponsePair:
-    user_request: UserRequest
-    npc_response: NpcResponse
-
-    def is_valid(self) -> bool:
-        return self.npc_response.answer != ""
-
-@dataclass
 class PlayerRole:
     name: str
     description: str

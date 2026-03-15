@@ -5,6 +5,7 @@ from typing import Dict
 from dotenv import load_dotenv
 from prefect import task
 
+from common.constants import DATA_DIR_NAME, GEN_USR_REQUEST_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME
 from common.data_classes import Action, PlayerRole
 from common.helpers import (
     list_files,
@@ -32,7 +33,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     npc_description = ''
 
-    actions_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/description.json'
+    actions_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
 
     with open(actions_f_path) as f:
         npc_data = json.load(f)
@@ -41,12 +42,12 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     actions_desc: Dict[str, str] = {}
 
-    actions_desc_f_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/1_generate_system_prompt_data/actions_desc.json'
+    actions_desc_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/actions_desc.json'
 
     with open(actions_desc_f_path) as f:
         actions_desc.update(json.loads(f.read()))
 
-    usr_requests_dir_path = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/0_generate_usr_requests/*.jsonl'
+    usr_requests_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_USR_REQUEST_DIR_NAME}/*.jsonl'
 
     usr_requests_by_actions_f_lst = list_files(usr_requests_dir_path)
     for usr_request_f in usr_requests_by_actions_f_lst:
@@ -105,7 +106,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             print(f'NPC: {response["answer"]}')
             print()
 
-        target_dir = f'input_data/{git_commit}/{npc_name}/{flow_run_id}/2_generate_npc_answers'
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_NPC_ANSWER_DIR_NAME}'
         target_fname = os.path.basename(usr_request_f)
 
         save_dict_records_to_jsonl(
