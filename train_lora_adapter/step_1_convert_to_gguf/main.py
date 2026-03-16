@@ -5,7 +5,9 @@ import sys
 from pathlib import Path
 from common.constants import *
 from dotenv import load_dotenv
+from prefect import task
 
+@task
 def process(git_commit, npc_name, flow_run_id):
     env_path = 'train_lora_adapter/step_1_convert_to_gguf/.env'
     if not load_dotenv(env_path, override=True):

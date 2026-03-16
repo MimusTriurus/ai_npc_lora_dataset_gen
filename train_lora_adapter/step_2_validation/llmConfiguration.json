@@ -1,0 +1,16 @@
+{
+  "model": "",
+  "lora_adapter": "",
+  "system_prompt": "",
+  "antiprompts": ["User: ", "user: "],
+  "n_gpu_layers": 9999,
+  "temp": 0.3,
+  "top_k": 40,
+  "top_p": 0.8,
+  "repeat_penalty": 1.2,
+  "repeat_last_n": 64,
+  "seed": -1,
+  "use_mlock": false,
+  "use_mmap": true,
+  "reset_history": true
+}

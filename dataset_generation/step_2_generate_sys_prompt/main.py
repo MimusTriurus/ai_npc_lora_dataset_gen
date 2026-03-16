@@ -42,7 +42,10 @@ def build_actions_rules(action_data):
     for action_name, param_keys in actions_params.items():
         lines.append(f"{action_name}")
         if param_keys:
-            lines.append(f"   parameters: {json.dumps([f'<{p}>' for p in param_keys])} where")
+            d = {}
+            for param in param_keys:
+                d[param] = f"<{param}>"
+            lines.append(f"   parameters: {json.dumps(d)} where")
         else:
             lines.append(f"   parameters: []")
 

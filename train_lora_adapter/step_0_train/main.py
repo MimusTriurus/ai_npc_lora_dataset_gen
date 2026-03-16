@@ -1,5 +1,4 @@
 from dotenv import load_dotenv
-
 import torch
 import os
 from datasets import load_dataset, Dataset
@@ -13,7 +12,7 @@ from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 import logging
 from common.helpers import update_manifest
-
+from prefect import task
 from common.constants import *
 
 logging.basicConfig(
@@ -40,7 +39,7 @@ def analyze_token_lengths(dataset: Dataset, tokenizer: AutoTokenizer) -> int:
 
     return recommended_length
 
-
+@task
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     env_path = 'train_lora_adapter/step_0_train/.env'
     if not load_dotenv(env_path, override=True):
@@ -229,7 +228,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
 
 if __name__ == "__main__":
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = 'trader'
     FLOW_RUN_ID = 'v1'
     process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

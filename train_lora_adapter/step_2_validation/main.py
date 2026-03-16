@@ -4,9 +4,11 @@ import ctypes
 from pathlib import Path
 from typing import List, Tuple, Dict
 import re
-
-from ullama_python.ullama import build_grammar, emotions, split_think_and_json, ULlamaWrapper
-
+from dotenv import load_dotenv
+from common.constants import *
+from common.helpers import update_manifest
+from ullama_python.ullama import emotions, split_think_and_json, ULlamaWrapper
+from prefect import task
 
 def list_files(folder_path: str) -> list[str]:
     return [
@@ -37,7 +39,6 @@ def read_dataset_file(path: str) -> List[Tuple[str, dict]]:
             dataset_pairs.append(pair)
     return dataset_pairs
 
-
 def make_system_prompt(sp_path: str):
     sp = read_file(sp_path)
 
@@ -45,37 +46,67 @@ def make_system_prompt(sp_path: str):
 
     return system_prompt
 
-
 def parse_actions_from_file(path: str):
     actions = []
 
-    pattern = re.compile(r"-\s*([A-Za-z_][A-Za-z0-9_]*)\s*")
-
     with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-
-            match = pattern.search(line)
-            if match:
-                action_name = match.group(1)
-                actions.append({"name": action_name})
+        actions_desc = json.loads(f.read())
+        for action_name, desc in actions_desc.items():
+            actions.append({"name": action_name})
 
     return actions
 
-if __name__ == "__main__":
+def custom_build_grammar(emotions: List[str], actions: List[dict], use_thinking_mode: bool = True) -> str:
+    header = r'root ::= ThinkOrNothing nl nl Response' if use_thinking_mode else r'root ::= Response'
+
+    thinking_rules = r'''
+ThinkOrNothing ::= ThinkBlock | ""
+ThinkBlock ::= "<think>" ThinkText "</think>"
+Sentence ::= ([^.<] | "<" [^/])* "."
+ThinkText ::= Sentence | Sentence Sentence | Sentence Sentence Sentence
+''' if use_thinking_mode else r''
+
+    common_rules = r'''
+nl ::= "\n"
+Action ::= "{" ws "\"name\":" ws actions "," ws "\"parameters\":" ws dict "}"
+Response ::= "{" ws "\"emotion\":" ws emotions "," ws "\"answer\":" ws string "," ws "\"action\":" ws Action "}"
+string ::= "\"" ([^"]*) "\""
+ws ::= [ \t\n]*
+kv ::= string ws ":" ws string
+dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
+    '''
+
+    emotions_rule = "emotions ::= " + " | ".join([rf'"\"{e}\""' for e in emotions])
+    actions_rule = "actions ::= " + " | ".join([rf'"\"{a["name"]}\""' for a in actions])
+
+    result =  f"# GBNF Grammar\n{header}{thinking_rules}{common_rules}\n{emotions_rule}\n{actions_rule}"
+    return result
+
+@task
+def process(git_commit: str, npc_name: str, flow_run_id: str):
+    env_path = 'train_lora_adapter/step_2_validation/.env'
+    if not load_dotenv(env_path, override=True):
+        print(f"Can't find .env file. {env_path}")
+        exit(1)
+
+    flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
+    manifest_f_path = f'{flow_run_dir_path}/manifest.json'
+
+    with open(manifest_f_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+        model_name = manifest["lora_training"]["model_name"].lower()
+        llm_model_f_path = f'{DATA_DIR_NAME}/models/{model_name}_q4_k_m.gguf'
+        lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_lora_f16.gguf'
+
     # region ENV vars
-    llm_model_f_path = os.getenv('LLM_MODEL_F_PATH', '')
-    lora_adapter_f_path = os.getenv('LORA_ADAPTER_F_PATH', '')
-    actions_f_path = os.getenv('ACTIONS_F_PATH', '')
+    actions_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/actions_desc.json'
     requests_count = int(os.getenv('MAX_REQUESTS_COUNT', 10))
     use_thinking = os.getenv('USE_THINKING', 'false').lower() in ("1", "true", "yes", "on")
-    system_prompt_f_path = os.getenv('SYSTEM_PROMPT_F_PATH', '')
+    system_prompt_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'
 
     llm_cfg_f_path = os.getenv('LLM_CFG_F_PATH', '')
 
-    validation_dataset_dir_path = os.getenv("VALIDATION_DATASET_PATH", f'')
+    validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/validation'
     # endregion
 
     if not os.path.isdir(validation_dataset_dir_path):
@@ -89,7 +120,7 @@ if __name__ == "__main__":
     ullm_config['lora_adapter'] = lora_adapter_f_path
     ullm_config['system_prompt'] = make_system_prompt(system_prompt_f_path)
     actions = parse_actions_from_file(actions_f_path)
-    grammar_string = build_grammar(emotions, actions, use_thinking)
+    grammar_string = custom_build_grammar(emotions, actions, use_thinking)
     ullm_config['grammar'] = grammar_string
 
     ullama_cfg_json_str = json.dumps(ullm_config).encode('utf-8')
@@ -190,3 +221,9 @@ if __name__ == "__main__":
         print(f"Ошибка: {e}")
 
     print('=== end ===')
+
+if __name__ == "__main__":
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
+    NPC_NAME = 'trader'
+    FLOW_RUN_ID = 'v1'
+    process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

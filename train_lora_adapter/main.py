@@ -1,8 +1,9 @@
 from prefect import flow
 import step_0_train.main as train_lora_adapter
 import step_1_convert_to_gguf.main as convert_lora_to_gguf
+import step_2_validation.main as validation_lora_adapter
 
-#@flow(name="lora-dataset-generation")
+@flow(name="lora-dataset-generation")
 def npc_lora_training_flow(
     unreal_commit: str,
     npc_name: str,
@@ -19,6 +20,18 @@ if __name__ == '__main__':
     FLOW_RUN_ID = 'v1'
 
     npc_lora_training_flow(
+        unreal_commit=COMMIT,
+        npc_name=NPC_NAME,
+        flow_run_id=FLOW_RUN_ID
+    )
+
+    convert_lora_to_gguf(
+        unreal_commit=COMMIT,
+        npc_name=NPC_NAME,
+        flow_run_id=FLOW_RUN_ID
+    )
+
+    validation_lora_adapter.process(
         unreal_commit=COMMIT,
         npc_name=NPC_NAME,
         flow_run_id=FLOW_RUN_ID
