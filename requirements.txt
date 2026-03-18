@@ -1,0 +1,2 @@
+-r dataset_generation/requirements.txt
+-r train_lora_adapter/requirements.txt

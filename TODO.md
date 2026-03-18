@@ -1,0 +1,3 @@
+- Перенести .env в prefect.yaml
+- Пробросить доп. параметры в prefect UI (размер датасета на action для dataset_generation, гиперпараметры для train_lora)
+- Добавить сохранение артефактов в S3 storage (Minio)

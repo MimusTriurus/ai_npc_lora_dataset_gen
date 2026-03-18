@@ -1,0 +1,18 @@
+name: npc-lora-adapter
+prefect-version: 3.6.22
+
+deployments:
+  - name: dataset-generation
+    entrypoint: dataset_generation/main.py:npc_lora_dataset_gen_flow
+    work_pool:
+      name: local
+    parameters:
+      unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+      npc_name: "trader"
+      flow_run_id: "v1"
+      use_npc_desc_gen: true
+    job_variables:
+      env:
+        PYTHONIOENCODING: "utf-8"
+        PYTHONUTF8: "1"
+        STEP_0_ENV: "1"
