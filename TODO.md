@@ -1,3 +1,4 @@
 - Перенести .env в prefect.yaml
+- Добавить name для task (@task(name="get-npc-desc"))
 - Пробросить доп. параметры в prefect UI (размер датасета на action для dataset_generation, гиперпараметры для train_lora)
 - Добавить сохранение артефактов в S3 storage (Minio)
