@@ -10,9 +10,52 @@ deployments:
       unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
       npc_name: "trader"
       flow_run_id: "v1"
-      use_npc_desc_gen: true
+      dataset_size_per_action: 100
     job_variables:
       env:
-        PYTHONIOENCODING: "utf-8"
-        PYTHONUTF8: "1"
-        STEP_0_ENV: "1"
+        STEP_0_REPO_ULLAMA_URL: "https://github.com/MimusTriurus/ullama_demo.git"
+        STEP_0_REPO_ULLAMA_PLUGIN_URL: "https://github.com/MimusTriurus/ullama_plugin.git"
+        STEP_0_UE_DIR_PATH: "C:/Program Files/Epic Games/UE_5.7/"
+        STEP_0_PROJECT_DIR: "D:/Projects/Unreal/tmp/ullama_demo"
+        STEP_0_PROJECT_F_NAME: "ullama_demo"
+        STEP_0_BRANCH: "master"
+
+        STEP_1_OLLAMA_MODEL: "qwen3:4b-instruct"
+        STEP_1_SP_TEMPLATE_F_PATH: "dataset_generation/step_1_generate_usr_requests/gen_usr_requests_system_prompt.j2"
+
+        STEP_2_OLLAMA_MODEL: "qwen3:8b"
+        STEP_2_GENERATE_ACTION_DESC: "true"
+        STEP_2_GEN_ACTION_DESC_SP_F_PATH: "dataset_generation/step_2_generate_sys_prompt/gen_action_desc_system_prompt.j2"
+        STEP_2_INFERENCE_SP_F_PATH: "dataset_generation/step_2_generate_sys_prompt/inference_system_prompt.j2"
+
+        STEP_3_OLLAMA_MODEL: "qwen3:4b-instruct"
+        STEP_3_BLACK_LIST_FOR_USR_REQUESTS: ""
+        STEP_3_ANSWER_GEN_SP_TEMPLATE_F_PATH: "dataset_generation/step_3_generate_npc_answers/gen_valid_response_system_prompt.j2"
+
+        STEP_4_BLACK_LIST_FOR_DIALOGS_PER_ACTION: ""
+
+  - name: lora-adapter_training
+    entrypoint: train_lora_adapter/main.py:npc_lora_training_flow
+    work_pool:
+      name: local
+    parameters:
+      unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+      npc_name: "trader"
+      flow_run_id: "v1"
+      base_model: "Qwen3-4B-Instruct-2507"
+      num_train_epoch: 1
+      lora_rank: 64
+      lora_alpha: 128
+      batch_size: 2
+    job_variables:
+      env:
+        STEP_0_VALIDATION_SPLIT: 0.05
+        STEP_0_EVAL_STRATEGY: "steps"
+        STEP_0_EVAL_STEPS: 200
+
+        STEP_1_LLAMA_BIN_DIR: "D:/Projects/C++/llama.cpp/cmake-build-release-visual-studio/bin"
+        STEP_1_LLAMA_CPP_DIR: "D:/Projects/C++/llama.cpp/"
+
+        STEP_2_MAX_REQUESTS_COUNT: 100
+        STEP_2_USE_THINKING: "false"
+        STEP_2_LLM_CFG_F_PATH: "train_lora_adapter/step_2_validation/llmConfiguration.json"

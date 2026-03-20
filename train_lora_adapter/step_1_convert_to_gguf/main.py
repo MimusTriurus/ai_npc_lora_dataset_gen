@@ -4,21 +4,20 @@ import subprocess
 import sys
 from pathlib import Path
 from common.constants import *
-from dotenv import load_dotenv
 from prefect import task
 
 @task
-def process(git_commit, npc_name, flow_run_id):
-    env_path = 'train_lora_adapter/step_1_convert_to_gguf/.env'
-    if not load_dotenv(env_path, override=True):
-        print(f"Can't find .env file. {env_path}")
-        exit(1)
-
+def process(
+        git_commit: str,
+        npc_name: str,
+        flow_run_id: str,
+        base_model: str,
+):
     LORA_PATH = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}"
     LORA_ADAPTER_PATH = f"{LORA_PATH}/final_adapter/"
 
-    BASE_MODEL = os.getenv('BASE_MODEL', 'Qwen3-4B-Instruct-2507')
-    OUT_FORMAT = os.getenv('OUT_FORMAT', 'f16')
+    BASE_MODEL = base_model
+    OUT_FORMAT = os.getenv('STEP_1_OUT_FORMAT', 'f16')
 
     OUT_BASE_MODEL_DIR = f"{DATA_DIR_NAME}/models/"
     OUT_BASE_MODEL_FILE = Path(f"{OUT_BASE_MODEL_DIR}/{BASE_MODEL.lower()}_{OUT_FORMAT.lower()}.gguf")
@@ -27,8 +26,8 @@ def process(git_commit, npc_name, flow_run_id):
     os.makedirs(os.path.dirname(OUT_BASE_MODEL_FILE), exist_ok=True)
     os.makedirs(os.path.dirname(OUT_LORA_ADAPTER_FILE), exist_ok=True)
 
-    LLAMA_CPP_DIR = Path(os.getenv('LLAMA_CPP_DIR', 'llama.cpp/'))
-    LLAMA_BIN_DIR = Path(os.getenv('LLAMA_BIN_DIR', 'llama.cpp/bin'))
+    LLAMA_CPP_DIR = Path(os.getenv('STEP_1_LLAMA_CPP_DIR', 'llama.cpp/'))
+    LLAMA_BIN_DIR = Path(os.getenv('STEP_1_LLAMA_BIN_DIR', 'llama.cpp/bin'))
 
     sys.path.append(str(LLAMA_CPP_DIR))
     converter_path = str(LLAMA_CPP_DIR / "convert_hf_to_gguf.py")

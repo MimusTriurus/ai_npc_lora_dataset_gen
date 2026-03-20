@@ -15,12 +15,7 @@ from common.helpers import (
     save_dict_records_to_jsonl, update_manifest,
 )
 
-env_path = 'dataset_generation/step_4_make_dataset/.env'
-if not load_dotenv(env_path, override=True):
-    print(f"Can't find .env file. {env_path}")
-    exit(1)
-
-black_list_for_dialogs_per_action = os.getenv('BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
+black_list_for_dialogs_per_action = os.getenv('STEP_4_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
 
 def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinking: bool = False) -> dict:
     if not use_thinking:
@@ -40,7 +35,7 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
-@task
+@task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
 

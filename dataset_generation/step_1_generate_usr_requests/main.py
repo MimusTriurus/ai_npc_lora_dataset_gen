@@ -13,19 +13,15 @@ from common.helpers import (
     parse_action_signature,
     replace_unicode
 )
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+from common.ollama_helper import OllamaHelper, OLLAMA_HOST
 from common.template_gen_components import env, build_action_template_params, render_template
 
-env_path = 'dataset_generation/step_1_generate_usr_requests/.env'
-if not load_dotenv(env_path, override=True):
-    print(f"Can't find .env file. {env_path}")
-    exit(1)
-
-DATASET_SIZE_PER_ACTION = int(os.getenv('DATASET_SIZE_PER_ACTION', 4000))
+#DATASET_SIZE_PER_ACTION = int(os.getenv('STEP_1_DATASET_SIZE_PER_ACTION', 4000))
 MAX_QUERIES_PER_ACTION_CHUNK = 50
+MODEL = os.getenv('STEP_1_OLLAMA_MODEL')
 
-sp_template_f_path = os.getenv('SP_TEMPLATE_F_PATH', 'dataset_generation/step_1_generate_usr_requests/gen_usr_requests_system_prompt.j2')
-usr_roles_f_path = os.getenv('USR_ROLES_F_PATH', f'{DATA_DIR_NAME}/user_roles.json')
+sp_template_f_path = os.getenv('STEP_1_SP_TEMPLATE_F_PATH', 'dataset_generation/step_1_generate_usr_requests/gen_usr_requests_system_prompt.j2')
+usr_roles_f_path = os.getenv('STEP_1_USR_ROLES_F_PATH', f'{DATA_DIR_NAME}/user_roles.json')
 
 def get_roles() -> List[dict]:
     with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
@@ -67,9 +63,10 @@ def calculate_roles_and_request_amount(
         current_actions_count: int,
         params_combination_count: int,
         max_roles_count: int,
+        dataset_size_per_action: int,
 ) -> Tuple[int, int]:
     solutions = calculate_dataset_params(
-        dataset_size=DATASET_SIZE_PER_ACTION,
+        dataset_size=dataset_size_per_action,
 
         actions=current_actions_count,
         params=params_combination_count,
@@ -91,8 +88,13 @@ def calculate_roles_and_request_amount(
 
     return target_roles_count, target_queries_count
 
-@task
-def process(git_commit: str, npc_name: str, flow_run_id: str = None):
+@task(name="step_1_generate_usr_requests")
+def process(
+        git_commit: str,
+        npc_name: str,
+        flow_run_id: str,
+        dataset_size_per_action: int
+):
     actions_count = {}
 
     roles = get_roles()
@@ -125,6 +127,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str = None):
             current_actions_count=current_actions_count,
             params_combination_count=request_combination_count,
             max_roles_count=max_roles_count,
+            dataset_size_per_action=dataset_size_per_action,
         )
 
         selected_roles = roles[:roles_amount]

@@ -7,19 +7,14 @@ from pathlib import Path
 
 from common.constants import DATA_DIR_NAME
 
-env_path = 'dataset_generation/step_0_get_npc_desc/.env'
-if not load_dotenv(env_path, override=True):
-    print(f"Can't find .env file. {env_path}")
-    exit(1)
-
 # region vars
-REPO_ULLAMA_URL = os.getenv('REPO_ULLAMA_URL')
-REPO_ULLAMA_PLUGIN_URL = os.getenv('REPO_ULLAMA_PLUGIN_URL')
-UE_DIR_PATH = os.getenv('UE_DIR_PATH')
-PROJECT_DIR = os.getenv('PROJECT_DIR')
+REPO_ULLAMA_URL = os.getenv('STEP_0_REPO_ULLAMA_URL')
+REPO_ULLAMA_PLUGIN_URL = os.getenv('STEP_0_REPO_ULLAMA_PLUGIN_URL')
+UE_DIR_PATH = os.getenv('STEP_0_UE_DIR_PATH')
+PROJECT_DIR = os.getenv('STEP_0_PROJECT_DIR')
 PROJECT_DIR = Path(PROJECT_DIR).resolve()
-PROJECT_F_NAME = os.getenv('PROJECT_F_NAME')
-BRANCH = os.getenv('BRANCH')
+PROJECT_F_NAME = os.getenv('STEP_0_PROJECT_F_NAME')
+BRANCH = os.getenv('STEP_0_BRANCH')
 # endregion
 
 UPROJECT = f"{PROJECT_DIR}/{PROJECT_F_NAME}.uproject"
@@ -93,7 +88,7 @@ def extract_npc_from_dataasset(npc_name: str, git_commit: str, flow_run_id: str)
     ]
     run(cmd)
 
-@task()
+@task(name="step_0_extract_npc_from_ue_dataasset")
 def process(git_commit: str, npc_name: str, flow_run_id: str = None):
     ensure_repo()
     update_repo()

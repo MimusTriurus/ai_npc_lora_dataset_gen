@@ -1,8 +1,6 @@
 import json
 import os
 from typing import Dict
-
-from dotenv import load_dotenv
 from prefect import task
 
 from common.constants import DATA_DIR_NAME, GEN_USR_REQUEST_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME
@@ -14,18 +12,14 @@ from common.helpers import (
     replace_unicode,
     load_jsonl_to_dict
 )
-from common.ollama_helper import MODEL, OLLAMA_HOST, OllamaHelper
+from common.ollama_helper import OLLAMA_HOST, OllamaHelper
 from common.template_gen_components import env
 
-env_path = 'dataset_generation/step_3_generate_npc_answers/.env'
-if not load_dotenv(env_path, override=True):
-    print(f"Can't find .env file. {env_path}")
-    exit(1)
+black_list_for_usr_request = os.getenv('STEP_3_BLACK_LIST_FOR_USR_REQUESTS', '').split(',')
+answer_gen_sp_template_f_path = os.getenv('STEP_3_ANSWER_GEN_SP_TEMPLATE_F_PATH', '')
+MODEL = os.getenv('STEP_3_OLLAMA_MODEL')
 
-black_list_for_usr_request = os.getenv('BLACK_LIST_FOR_USR_REQUESTS', '').split(',')
-answer_gen_sp_template_f_path = os.getenv('ANSWER_GEN_SP_TEMPLATE_F_PATH', '')
-
-@task
+@task(name="step_3_generate_npc_answers")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     answer_gen_sp_template = ''
     with open(answer_gen_sp_template_f_path, 'r', encoding='utf-8') as f:
@@ -100,11 +94,12 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             pr['npc_response']['answer'] = replace_unicode(response['answer'])
 
             out_requests.append(pr)
-
+            '''
             print(f'USR: {pr["usr_request"]["request"]}')
             print(f'--- ACTION: {npc_action_str} ---')
             print(f'NPC: {response["answer"]}')
             print()
+            '''
 
         target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_NPC_ANSWER_DIR_NAME}'
         target_fname = os.path.basename(usr_request_f)

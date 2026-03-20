@@ -84,11 +84,6 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
 
 @task
 def process(git_commit: str, npc_name: str, flow_run_id: str):
-    env_path = 'train_lora_adapter/step_2_validation/.env'
-    if not load_dotenv(env_path, override=True):
-        print(f"Can't find .env file. {env_path}")
-        exit(1)
-
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     manifest_f_path = f'{flow_run_dir_path}/manifest.json'
 
@@ -100,11 +95,11 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     # region ENV vars
     actions_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/actions_desc.json'
-    requests_count = int(os.getenv('MAX_REQUESTS_COUNT', 10))
-    use_thinking = os.getenv('USE_THINKING', 'false').lower() in ("1", "true", "yes", "on")
+    requests_count = int(os.getenv('STEP_2_MAX_REQUESTS_COUNT', 10))
+    use_thinking = os.getenv('STEP_2_USE_THINKING', 'false').lower() in ("1", "true", "yes", "on")
     system_prompt_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'
 
-    llm_cfg_f_path = os.getenv('LLM_CFG_F_PATH', '')
+    llm_cfg_f_path = os.getenv('STEP_2_LLM_CFG_F_PATH', '')
 
     validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/validation'
     # endregion

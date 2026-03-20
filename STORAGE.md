@@ -1,0 +1,4 @@
+- download: https://dl.min.io/client/mc/release/windows-amd64/mc.exe
+- run: minio.exe server D:\Projects\Python\ai_npc_lora_dataset_gen\storage
+- порт 9000 — S3 API
+- порт 9001 — веб‑консоль

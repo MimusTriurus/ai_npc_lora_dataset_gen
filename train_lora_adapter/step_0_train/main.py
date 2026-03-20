@@ -39,42 +39,38 @@ def analyze_token_lengths(dataset: Dataset, tokenizer: AutoTokenizer) -> int:
 
     return recommended_length
 
-@task
-def process(git_commit: str, npc_name: str, flow_run_id: str):
-    env_path = 'train_lora_adapter/step_0_train/.env'
-    if not load_dotenv(env_path, override=True):
-        print(f"Can't find .env file. {env_path}")
-        exit(1)
-
-    model_name = os.getenv('MODEL_NAME', "Qwen3-4B-Instruct-2507")
-    model_path = f'models/{model_name}'
+@task(name="step_0_train_lora_adapter")
+def process(
+        git_commit: str,
+        npc_name: str,
+        flow_run_id: str,
+        base_model: str = "Qwen3-4B-Instruct-2507",
+        num_train_epoch: int = 1,
+        lora_rank: int = 64,
+        lora_alpha: int = 128,
+        batch_size: int = 2,
+):
+    model_path = f'models/{base_model}'
 
     if not os.path.exists(model_path):
         logger.info(f"Model not found locally, downloading from HuggingFace...")
         from huggingface_hub import snapshot_download
-        snapshot_download(repo_id=f"Qwen/{model_name}", local_dir=model_path)
+        snapshot_download(repo_id=f"Qwen/{base_model}", local_dir=model_path)
 
     dataset_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}'
-    dataset_size = int(os.getenv('DATASET_SIZE', 100))
-    num_train_epoch = int(os.getenv('NUM_TRAIN_EPOCH', 3))
 
-    learning_rate = float(os.getenv('LEARNING_RATE', 5e-5))
-    batch_size = int(os.getenv('BATCH_SIZE', 4))
-    gradient_accumulation = int(os.getenv('GRADIENT_ACCUMULATION', 4))
+    learning_rate = float(os.getenv('STEP_0_LEARNING_RATE', 5e-5))
+    gradient_accumulation = int(os.getenv('STEP_0_GRADIENT_ACCUMULATION', 4))
 
-    lora_rank = int(os.getenv('LORA_RANK', 64))
-    lora_alpha = int(os.getenv('LORA_ALPHA', 128))
-
-    eval_strategy = os.getenv('EVAL_STRATEGY', 'no')
-    eval_steps = int(os.getenv('EVAL_STEPS', 100))
+    eval_strategy = os.getenv('STEP_0_EVAL_STRATEGY', 'no')
+    eval_steps = int(os.getenv('STEP_0_EVAL_STEPS', 100))
 
     logger.info("=" * 50)
     logger.info("TRAINING CONFIGURATION")
     logger.info("=" * 50)
-    logger.info(f"Model: {model_name}")
+    logger.info(f"Model: {base_model}")
     logger.info(f"Model path: {model_path}")
     logger.info(f"Dataset dir: {dataset_dir}")
-    logger.info(f"Target dataset size per class: {dataset_size}")
     logger.info(f"Epochs: {num_train_epoch}")
     logger.info(f"Learning rate: {learning_rate}")
     logger.info(f"Batch size: {batch_size}")
@@ -215,7 +211,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     manifest = {
         'lora_training': {
-            'model_name': model_name,
+            'model_name': base_model,
             'num_train_epoch': num_train_epoch,
             'learning_rate': learning_rate,
             'batch_size': batch_size,

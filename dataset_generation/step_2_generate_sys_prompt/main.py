@@ -11,17 +11,13 @@ from prefect import task
 from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 
-env_path = 'dataset_generation/step_2_generate_sys_prompt/.env'
-if not load_dotenv(env_path, override=True):
-    print(f"Can't find .env file. {env_path}")
-    exit(1)
-
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST, MODEL
+from common.ollama_helper import OllamaHelper, OLLAMA_HOST
 
 env = Environment()
 
-GEN_ACTION_DESC_SP_F_PATH = os.getenv('GEN_ACTION_DESC_SP_F_PATH', '')
-need_2_gen_action_desc = is_env_var_true('GENERATE_ACTION_DESC')
+GEN_ACTION_DESC_SP_F_PATH = os.getenv('STEP_2_GEN_ACTION_DESC_SP_F_PATH', '')
+need_2_gen_action_desc = is_env_var_true('STEP_2_GENERATE_ACTION_DESC')
+MODEL = os.getenv('STEP_2_OLLAMA_MODEL')
 
 def build_actions_rules(action_data):
     actions_params = {}
@@ -112,10 +108,10 @@ def generate_action_description(npc_data: dict):
         action_description, think = helper.generate(MODEL, sp)
         action['Description'] = action_description
 
-@task
+@task(name="step_2_generate_sys_prompt_and_actions_description")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     NPC_DESC_F_PATH = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
-    INFERENCE_SP_F_PATH = os.getenv("INFERENCE_SP_F_PATH")
+    INFERENCE_SP_F_PATH = os.getenv("STEP_2_INFERENCE_SP_F_PATH")
 
     SYSTEM_PROMPT_TEMPLATE = ''
     with open(INFERENCE_SP_F_PATH, "r", encoding="utf-8") as f:
