@@ -1,10 +1,12 @@
 from prefect import flow
+from prefect.context import get_run_context
+
 import step_0_train.main as train_lora_adapter
 import step_1_convert_to_gguf.main as convert_lora_to_gguf
 import step_2_validation.main as validation_lora_adapter
 
 @flow(name="train-lora-adapter-4-ue-npc", log_prints=True)
-def npc_lora_training_flow(
+async def npc_lora_training_flow(
     unreal_commit: str,
     npc_name: str,
     flow_run_id: str,
@@ -14,6 +16,15 @@ def npc_lora_training_flow(
     lora_alpha: int = 128,
     batch_size: int = 2,
 ):
+    ctx = get_run_context()
+    client = ctx.client
+    run = ctx.flow_run
+    run_name = f"train-lora-npc-{npc_name}-{flow_run_id}"
+    await client.update_flow_run(
+        flow_run_id=run.id,
+        name=run_name
+    )
+
     git_commit = unreal_commit[:7]
 
     train_lora_adapter.process(

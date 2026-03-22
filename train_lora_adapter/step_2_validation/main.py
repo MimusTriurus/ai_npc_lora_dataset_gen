@@ -3,8 +3,6 @@ import os
 import ctypes
 from pathlib import Path
 from typing import List, Tuple, Dict
-import re
-from dotenv import load_dotenv
 from common.constants import *
 from common.helpers import update_manifest, replace_unicode
 from ullama_python.ullama import emotions, split_think_and_json, ULlamaWrapper

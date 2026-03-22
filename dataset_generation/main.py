@@ -11,15 +11,20 @@ import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_np
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
 
 @flow(name="lora-dataset-generation", log_prints=True)
-def npc_lora_dataset_gen_flow(
+async def npc_lora_dataset_gen_flow(
     unreal_commit: str,
     npc_name: str,
     flow_run_id: str,
     dataset_size_per_action: int
 ):
     ctx = get_run_context()
+    client = ctx.client
     run = ctx.flow_run
-    run.name = f"gen-{npc_name}-dataset-{flow_run_id}"
+    run_name = f"gen-dataset-npc-{npc_name}-{flow_run_id}"
+    await client.update_flow_run(
+        flow_run_id=run.id,
+        name=run_name
+    )
 
     git_commit = unreal_commit[:7]
 
