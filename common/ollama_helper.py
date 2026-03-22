@@ -42,3 +42,50 @@ class OllamaHelper:
         except Exception as e:
             print(f"[ERR] unexpected: {e}")
             return None, None
+
+    def chat(
+        self,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        history: Optional[List[dict]] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        try:
+            messages = []
+
+            # system prompt
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+
+            # previous dialogue
+            if history:
+                messages.extend(history)
+
+            # new user message
+            messages.append({"role": "user", "content": user_prompt})
+
+            resp = self.client.chat(
+                model=model,
+                messages=messages,
+                stream=False,
+                options={
+                    "temperature": 0.9,
+                    "top_p": 0.95,
+                    "top_k": 20
+                },
+            )
+
+            # Ollama chat returns:
+            # {"message": {"role": "assistant", "content": "..."}}
+            msg = resp.get("message", {})
+            answer = msg.get("content", None)
+            thinking = resp.get("thinking", None)
+
+            return answer, thinking
+
+        except ollama.ResponseError as e:
+            print(f"[ERR] ollama chat: {e}")
+            return None, None
+        except Exception as e:
+            print(f"[ERR] unexpected: {e}")
+            return None, None
