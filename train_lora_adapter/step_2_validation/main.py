@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict
 import re
 from dotenv import load_dotenv
 from common.constants import *
-from common.helpers import update_manifest
+from common.helpers import update_manifest, replace_unicode
 from ullama_python.ullama import emotions, split_think_and_json, ULlamaWrapper
 from prefect import task
 
@@ -82,7 +82,7 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
     result =  f"# GBNF Grammar\n{header}{thinking_rules}{common_rules}\n{emotions_rule}\n{actions_rule}"
     return result
 
-@task
+@task(name="step_2_lora_validation")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     manifest_f_path = f'{flow_run_dir_path}/manifest.json'
@@ -162,6 +162,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                     think_block = None
                     response_dict = {}
                     try:
+                        response = replace_unicode(response)
                         think_block, response_dict = split_think_and_json(response)
                     except Exception as e:
                         print(e)
@@ -213,7 +214,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         api.lib.ullama_worker_dispose(worker)
         api.lib.ullama_freeModel(model)
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"Error: {e}")
 
     print('=== end ===')
 

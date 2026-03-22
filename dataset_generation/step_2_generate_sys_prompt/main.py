@@ -1,14 +1,11 @@
 import json
 import os
-import sys
 from collections import defaultdict
-from typing import Dict
-
-from dotenv import load_dotenv
+from typing import Dict, Tuple
 from jinja2 import Environment
 from prefect import task
 
-from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME
+from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, ACTION_FOR_IRRELEVANT_REQUESTS
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST
@@ -35,6 +32,10 @@ def build_actions_rules(action_data):
 
     lines = []
 
+    irr_act_name, irr_act_desc = make_irrelevant_action_description()
+    actions_params[irr_act_name] = {}
+    action_desc[irr_act_name] = irr_act_desc
+
     for action_name, param_keys in actions_params.items():
         lines.append(f"{action_name}")
         if param_keys:
@@ -43,7 +44,7 @@ def build_actions_rules(action_data):
                 d[param] = f"<{param}>"
             lines.append(f"   parameters: {json.dumps(d)} where")
         else:
-            lines.append(f"   parameters: []")
+            lines.append("   parameters: {}")
 
         for p in param_keys:
             lines.append(f"      <{p}> is one of AllowedParameters_{p}")
@@ -108,6 +109,10 @@ def generate_action_description(npc_data: dict):
         action_description, think = helper.generate(MODEL, sp)
         action['Description'] = action_description
 
+def make_irrelevant_action_description() -> Tuple[str, str]:
+    description = f"The user asks the NPC about topics completely unrelated to the NPC's role, abilities, or context - such as distant events, unrelated professions, abstract concepts, or impossible tasks - resulting in a request the NPC cannot meaningfully answer."
+    return ACTION_FOR_IRRELEVANT_REQUESTS, description
+
 @task(name="step_2_generate_sys_prompt_and_actions_description")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     NPC_DESC_F_PATH = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
@@ -135,6 +140,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             action_name, action_args = parse_action_signature(action["ActionTemplate"])
             action_desc = action["Description"]
             actions_desc[action_name] = action_desc
+
+        irrelevant_action_name, irrelevant_action_desc = make_irrelevant_action_description()
+        actions_desc[irrelevant_action_name] = irrelevant_action_desc
 
         save_text_file(
             folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",

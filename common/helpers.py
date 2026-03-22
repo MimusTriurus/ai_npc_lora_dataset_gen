@@ -8,6 +8,7 @@ from typing import List, Type, TypeVar, Dict, Iterable, Set, Any, Tuple
 
 from unidecode import unidecode
 
+from common.constants import DATA_DIR_NAME
 from common.data_classes import Action, Question
 import os
 import glob
@@ -377,3 +378,9 @@ def update_manifest(manifest_file_path: str, manifest: dict):
 
     with open(manifest_file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+def get_npc_data(git_commit: str, npc_name: str, flow_run_id: str) -> dict:
+    npc_desc_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
+    with open(npc_desc_f_path, "r", encoding="utf-8") as f:
+        npc_data = json.load(f)
+        return npc_data

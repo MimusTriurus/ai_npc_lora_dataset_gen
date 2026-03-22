@@ -8,3 +8,5 @@ MODELS_DIR_NAME = 'models'
 LORA_DIR_NAME = 'training/0_lora'
 GGUF_DIR_NAME = 'training/1_gguf'
 VALIDATION_RESULT_DIR_NAME = 'training/2_validation'
+
+ACTION_FOR_IRRELEVANT_REQUESTS = 'DoNothing'

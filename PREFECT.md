@@ -12,3 +12,6 @@ prefect work-pool create local --type process
 prefect worker start --pool local
 
 prefect deploy -n dataset-generation --no-prompt
+prefect deploy -n lora-adapter_training --no-prompt
+
+prefect deployment inspect "lora-dataset-generation/dataset-generation"

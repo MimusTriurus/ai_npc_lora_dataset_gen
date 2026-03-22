@@ -112,6 +112,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
 
 if __name__ == '__main__':
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
+    FLOW_RUN_ID = "v_test"
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))

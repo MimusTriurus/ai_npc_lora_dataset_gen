@@ -3,11 +3,11 @@ import step_0_train.main as train_lora_adapter
 import step_1_convert_to_gguf.main as convert_lora_to_gguf
 import step_2_validation.main as validation_lora_adapter
 
-@flow(name="train-lora-adapter-4-ue-npc")
+@flow(name="train-lora-adapter-4-ue-npc", log_prints=True)
 def npc_lora_training_flow(
     unreal_commit: str,
     npc_name: str,
-    flow_run_id: str = 'latest',
+    flow_run_id: str,
     base_model: str = "Qwen3-4B-Instruct-2507",
     num_train_epoch: int = 1,
     lora_rank: int = 64,

@@ -6,7 +6,7 @@ from pathlib import Path
 from common.constants import *
 from prefect import task
 
-@task
+@task(name="step_1_convert_to_gguf")
 def process(
         git_commit: str,
         npc_name: str,

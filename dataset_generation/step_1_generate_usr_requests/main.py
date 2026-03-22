@@ -1,8 +1,6 @@
 import json
 import os
 from typing import List, Tuple, Dict
-
-from dotenv import load_dotenv
 from prefect import task
 
 from common.constants import DATA_DIR_NAME, GEN_USR_REQUEST_DIR_NAME
@@ -11,12 +9,11 @@ from common.helpers import (
     extract_nsloctext_value,
     save_dict_records_to_jsonl,
     parse_action_signature,
-    replace_unicode
+    replace_unicode, get_npc_data
 )
 from common.ollama_helper import OllamaHelper, OLLAMA_HOST
 from common.template_gen_components import env, build_action_template_params, render_template
 
-#DATASET_SIZE_PER_ACTION = int(os.getenv('STEP_1_DATASET_SIZE_PER_ACTION', 4000))
 MAX_QUERIES_PER_ACTION_CHUNK = 50
 MODEL = os.getenv('STEP_1_OLLAMA_MODEL')
 
@@ -31,12 +28,6 @@ def get_roles() -> List[dict]:
 def get_system_prompt_template() -> str:
     with open(sp_template_f_path, "r", encoding="utf-8") as f:
         return f.read()
-
-def get_npc_data(git_commit: str, npc_name: str, flow_run_id: str) -> dict:
-    npc_desc_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
-    with open(npc_desc_f_path, "r", encoding="utf-8") as f:
-        npc_data = json.load(f)
-        return npc_data
 
 def build_system_prompt(
     request_example: str,
@@ -88,7 +79,7 @@ def calculate_roles_and_request_amount(
 
     return target_roles_count, target_queries_count
 
-@task(name="step_1_generate_usr_requests")
+@task(name="step_1_generate_relevant_usr_requests")
 def process(
         git_commit: str,
         npc_name: str,
@@ -237,6 +228,15 @@ def process(
 
 
 if __name__ == "__main__":
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
+    FLOW_RUN_ID = "v_test"
+    DATASET_SIZE_PER_ACTION = 100
+    exit(
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            data_size=DATASET_SIZE_PER_ACTION
+        )
+    )

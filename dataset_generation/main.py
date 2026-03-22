@@ -1,19 +1,26 @@
 import os
 
 from prefect import flow
+from prefect.context import get_run_context
+
 import dataset_generation.step_0_get_npc_desc.main as step_0_get_npc_desc
-import dataset_generation.step_1_generate_usr_requests.main as step_1_generate_usr_requests
+import dataset_generation.step_1_generate_usr_requests.main as step_1_generate_relevant_usr_requests
+import dataset_generation.step_1_generate_usr_requests.gen_irrelevant_requests as step_1_generate_irrelevant_usr_requests
 import dataset_generation.step_2_generate_sys_prompt.main as step_2_generate_sys_prompt
 import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_npc_answers
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
 
-@flow(name="lora-dataset-generation")
+@flow(name="lora-dataset-generation", log_prints=True)
 def npc_lora_dataset_gen_flow(
     unreal_commit: str,
     npc_name: str,
     flow_run_id: str,
     dataset_size_per_action: int
 ):
+    ctx = get_run_context()
+    run = ctx.flow_run
+    run.name = f"gen-{npc_name}-dataset-{flow_run_id}"
+
     git_commit = unreal_commit[:7]
 
     step_0_get_npc_desc.process(
@@ -22,7 +29,14 @@ def npc_lora_dataset_gen_flow(
         flow_run_id=flow_run_id,
     )
 
-    step_1_generate_usr_requests.process(
+    step_1_generate_relevant_usr_requests.process(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id,
+        dataset_size_per_action=dataset_size_per_action,
+    )
+
+    step_1_generate_irrelevant_usr_requests.process(
         git_commit=git_commit,
         npc_name=npc_name,
         flow_run_id=flow_run_id,
