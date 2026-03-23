@@ -10,7 +10,7 @@ from common.ollama_helper import *
 from common.template_gen_components import env
 
 def get_roles() -> List[dict]:
-    usr_roles_f_path = os.getenv('STEP_1_USR_ROLES_F_PATH', f'{DATA_DIR_NAME}/user_roles.json')
+    usr_roles_f_path = os.getenv('STEP_1_USR_ROLES_F_PATH', 'resources/user_roles.json')
     with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
         roles: List[dict] = json.load(f)
         return roles
@@ -49,7 +49,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_size_per_a
     requests_per_role = math.ceil(dataset_size_per_action / roles_count)
     requests_per_role = max(25, requests_per_role)
 
-    helper = OllamaHelper(OLLAMA_HOST)
+    cfg = {}
+    helper = OllamaHelper(cfg)
 
     questions_per_role = list()
 

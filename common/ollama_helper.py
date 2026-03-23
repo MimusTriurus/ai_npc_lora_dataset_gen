@@ -3,16 +3,28 @@ import os
 import ollama
 from typing import Dict, List, Optional, Tuple
 
+import json
+
 MODEL = os.getenv('OLLAMA_MODEL', 'qwen3:4b-instruct')
-OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
 OUTPUT_FILE = os.getenv('OUTPUT_FILE', 'npc_lora_dataset.jsonl')
 
 def build_prompt(system_text: str, user_json: str) -> str:
     return f"SYSTEM:\n{system_text}\n\nUSER:\n{user_json}"
 
 class OllamaHelper:
-    def __init__(self, host: str):
+    def __init__(self, base_config: dict):
+        host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         self.client = ollama.Client(host=host)
+        if not base_config:
+            with open('resources/ollama_cfg.json', 'r') as f:
+                base_config = json.load(f)
+
+        self.temp: float = base_config.get('temp', 0.3)
+        self.top_k: int = base_config.get('top_k', 40)
+        self.top_p: float = base_config.get('top_p', 0.8)
+        self.repeat_penalty: float = base_config.get('repeat_penalty', 1.2)
+        self.repeat_last_n: int = base_config.get('repeat_last_n', 64)
+        self.seed: int = base_config.get('seed', -1)
 
     def check_model_exists(self, model: str) -> bool:
         try:
@@ -30,9 +42,12 @@ class OllamaHelper:
                 prompt=prompt,
                 stream=False,
                 options={
-                    "temperature": 0.9,
-                    "top_p": 0.95,
-                    "top_k": 20
+                    "temperature": self.temp,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "repeat_penalty": self.repeat_penalty,
+                    "repeat_last_n": self.repeat_last_n,
+                    "seed": self.seed,
                 },
             )
             return resp.get('response', None), resp.get('thinking', None)
@@ -49,7 +64,7 @@ class OllamaHelper:
         system_prompt: str,
         user_prompt: str,
         history: Optional[List[dict]] = None,
-    ) -> Tuple[Optional[str], Optional[str]]:
+    ) -> Tuple[Optional[Dict], Optional[str]]:
         try:
             messages = []
 
@@ -69,9 +84,12 @@ class OllamaHelper:
                 messages=messages,
                 stream=False,
                 options={
-                    "temperature": 0.9,
-                    "top_p": 0.95,
-                    "top_k": 20
+                    "temperature": self.temp,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "repeat_penalty": self.repeat_penalty,
+                    "repeat_last_n": self.repeat_last_n,
+                    "seed": self.seed,
                 },
             )
 
@@ -81,7 +99,7 @@ class OllamaHelper:
             answer = msg.get("content", None)
             thinking = resp.get("thinking", None)
 
-            return answer, thinking
+            return json.loads(answer), thinking
 
         except ollama.ResponseError as e:
             print(f"[ERR] ollama chat: {e}")

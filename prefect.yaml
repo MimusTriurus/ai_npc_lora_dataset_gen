@@ -47,7 +47,7 @@ deployments:
 
           STEP_2_MAX_REQUESTS_COUNT: "100"
           STEP_2_USE_THINKING: "false"
-          STEP_2_LLM_CFG_F_PATH: "train_lora_adapter/step_2_validation/llmConfiguration.json"
+          STEP_2_LLM_CFG_F_PATH: "resources/ullama_cfg.json"
     parameters:
       unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
       npc_name: "trader"

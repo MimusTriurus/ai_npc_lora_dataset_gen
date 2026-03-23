@@ -11,14 +11,14 @@ from common.helpers import (
     parse_action_signature,
     replace_unicode, get_npc_data
 )
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST
+from common.ollama_helper import OllamaHelper
 from common.template_gen_components import env, build_action_template_params, render_template
 
 MAX_QUERIES_PER_ACTION_CHUNK = 50
 MODEL = os.getenv('STEP_1_OLLAMA_MODEL')
 
 sp_template_f_path = os.getenv('STEP_1_SP_TEMPLATE_F_PATH', 'dataset_generation/step_1_generate_usr_requests/gen_usr_requests_system_prompt.j2')
-usr_roles_f_path = os.getenv('STEP_1_USR_ROLES_F_PATH', f'{DATA_DIR_NAME}/user_roles.json')
+usr_roles_f_path = os.getenv('STEP_1_USR_ROLES_F_PATH', f'resources/user_roles.json')
 
 def get_roles() -> List[dict]:
     with open(f"{usr_roles_f_path}", "r", encoding="utf-8") as f:
@@ -161,7 +161,8 @@ def process(
 
                     while attempt_count < MAX_ATTEMPTS:
                         try:
-                            helper = OllamaHelper(OLLAMA_HOST)
+                            cfg = {}
+                            helper = OllamaHelper(cfg)
                             requests_str, think = helper.generate(MODEL, prompt)
                             result = replace_unicode(requests_str)
                             requests = set(json.loads(result))

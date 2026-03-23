@@ -12,7 +12,7 @@ from common.helpers import (
     replace_unicode,
     load_jsonl_to_dict
 )
-from common.ollama_helper import OLLAMA_HOST, OllamaHelper
+from common.ollama_helper import OllamaHelper
 from common.template_gen_components import env
 
 black_list_for_usr_request = os.getenv('STEP_3_BLACK_LIST_FOR_USR_REQUESTS', '').split(',')
@@ -85,8 +85,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             }
 
             inference_system_prompt = pr_template.render(template_params)
-
-            helper = OllamaHelper(OLLAMA_HOST)
+            cfg = {}
+            helper = OllamaHelper(cfg)
             response_str, think = helper.generate(MODEL, inference_system_prompt)
             response = json.loads(response_str)
 

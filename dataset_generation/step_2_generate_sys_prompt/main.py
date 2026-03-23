@@ -8,7 +8,7 @@ from prefect import task
 from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, ACTION_FOR_IRRELEVANT_REQUESTS
 from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
 
-from common.ollama_helper import OllamaHelper, OLLAMA_HOST
+from common.ollama_helper import OllamaHelper
 
 env = Environment()
 
@@ -104,8 +104,8 @@ def generate_action_description(npc_data: dict):
         }
         sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
         sp = sp_template.render(params)
-
-        helper = OllamaHelper(OLLAMA_HOST)
+        cfg = {}
+        helper = OllamaHelper(cfg)
         action_description, think = helper.generate(MODEL, sp)
         action['Description'] = action_description
 
