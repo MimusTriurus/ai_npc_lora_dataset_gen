@@ -92,7 +92,7 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
     return result
 
 
-#@task(name="step_2_lora_validation")
+@task(name="step_2_lora_validation")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     manifest_f_path = os.path.abspath(f'{flow_run_dir_path}/manifest.json')
