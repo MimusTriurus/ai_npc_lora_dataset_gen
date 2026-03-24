@@ -89,7 +89,7 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
     return result
 
 
-@task(name="step_2_lora_validation")
+#@task(name="step_2_lora_validation")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     manifest_f_path = f'{flow_run_dir_path}/manifest.json'
@@ -102,7 +102,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     print(f'===> ULlama inference')
 
-    u_json_parse_fails, u_json_structure_fails, u_action_fails, u_args_fails, u_total_fails = inference(
+    lora_metrics = inference(
         git_commit=git_commit,
         npc_name=npc_name,
         flow_run_id=flow_run_id,
@@ -113,7 +113,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     print(f'===> OLlama inference')
 
-    o_json_parse_fails, o_json_structure_fails, o_action_fails, o_args_fails, o_total_fails = inference(
+    base_metrics = inference(
         git_commit=git_commit,
         npc_name=npc_name,
         flow_run_id=flow_run_id,
@@ -231,12 +231,21 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, model: str, lora
 
     print('=== end ===')
 
-    return json_parse_fails, json_structure_fails, action_fails, args_fails, total_fails
+    metrics = {
+        "total_fails": total_fails,
+        "total_requests": total_requests,
+        "json_parse_fails": json_parse_fails,
+        "json_structure_fails": json_structure_fails,
+        "action_fails": action_fails,
+        "args_fails": args_fails,
+    }
+
+    return metrics
 
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = 'trader'
-    FLOW_RUN_ID = 'v1'
+    FLOW_RUN_ID = 'v_test'
 
     process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

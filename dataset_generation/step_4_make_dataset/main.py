@@ -108,7 +108,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     manifest = {
         'unreal_commit': git_commit,
-        'pipeline_commit': pipeline_commit,
+        'npc_name': npc_name,
+        'pipeline_commit': pipeline_commit[:7],
         'timestamp': datetime.now().isoformat(),
         'flow_run_id': flow_run_id,
         'dataset': {
