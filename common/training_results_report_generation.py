@@ -104,18 +104,26 @@ def generate_validation_report(
             f"| {metrics_base['json_structure_fails']} ({pct(metrics_base['json_structure_fails'], total)}) "
             f"| {metrics_lora['json_structure_fails']} ({pct(metrics_lora['json_structure_fails'], total)}) "
             f"| {delta_str(metrics_base['json_structure_fails'], metrics_lora['json_structure_fails'], total)} |",
+        f"| Actions fails "
+            f"| {metrics_base['total_action_fails']} ({pct(metrics_base['total_action_fails'], total)}) "
+            f"| {metrics_lora['total_action_fails']} ({pct(metrics_lora['total_action_fails'], total)}) "
+            f"| {delta_str(metrics_base['total_action_fails'], metrics_lora['total_action_fails'], total)} |",
+        f"| Actions args fails "
+            f"| {metrics_base['total_args_fails']} ({pct(metrics_base['total_args_fails'], total)}) "
+            f"| {metrics_lora['total_args_fails']} ({pct(metrics_lora['total_args_fails'], total)}) "
+            f"| {delta_str(metrics_base['total_args_fails'], metrics_lora['total_args_fails'], total)} |",
         f"",
         f"---",
         f"",
         f"## Action Fails",
         f"",
-        dict_table(metrics_base["action_fails"], metrics_lora["action_fails"], total),
+        dict_table(metrics_base["fails_per_action"], metrics_lora["fails_per_action"], total),
         f"",
         f"---",
         f"",
         f"## Args Fails",
         f"",
-        dict_table(metrics_base["args_fails"], metrics_lora["args_fails"], total),
+        dict_table(metrics_base["fails_per_action_args"], metrics_lora["fails_per_action_args"], total),
         f"",
     ]
 
@@ -129,19 +137,27 @@ if __name__ == "__main__":
     metrics_base_model = {
         "total_fails": 10,
         "total_requests": 10,
+
         "json_parse_fails": 4,
         "json_structure_fails": 3,
-        "action_fails": {"buy": 2, "sell": 1},
-        "args_fails": {"gold": 1, "item": 2},
+        "total_action_fails": 3,
+        "total_args_fails": 3,
+
+        "fails_per_action": {"buy": 2, "sell": 1},
+        "fails_per_action_args": {"gold": 1, "item": 2},
     }
 
     metrics_lora_model = {
         "total_fails": 7,
         "total_requests": 10,
+
         "json_parse_fails": 2,
         "json_structure_fails": 1,
-        "action_fails": {"buy": 1, "sell": 0},
-        "args_fails": {"gold": 1, "item": 1},
+        "total_action_fails": 1,
+        "total_args_fails": 2,
+
+        "fails_per_action": {"buy": 1, "sell": 0},
+        "fails_per_action_args": {"gold": 1, "item": 1},
     }
 
     flow_run_dir_path = f'{DATA_DIR_NAME}/{COMMIT}/{NPC_NAME}/{FLOW_RUN_ID}'

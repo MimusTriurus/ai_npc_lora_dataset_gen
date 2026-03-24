@@ -6,7 +6,10 @@ from common.constants import *
 from ullama_python.ullama import emotions
 from prefect import task
 
+from common.helpers import update_manifest
+from common.metrics_plot_generation import make_metrics_plot
 from common.ollama_helper import OllamaHelper, MODEL
+from common.training_results_report_generation import generate_validation_report
 from common.ullama_helper import ULlamaHelper
 
 
@@ -92,7 +95,7 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
 #@task(name="step_2_lora_validation")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
-    manifest_f_path = f'{flow_run_dir_path}/manifest.json'
+    manifest_f_path = os.path.abspath(f'{flow_run_dir_path}/manifest.json')
 
     with open(manifest_f_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
@@ -100,8 +103,17 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         llm_model_f_path = f'{DATA_DIR_NAME}/models/{model_name}_q4_k_m.gguf'
         lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_lora_f16.gguf'
 
-    print(f'===> ULlama inference')
+    print(f'===> Base model inference')
+    base_metrics = inference(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id,
+        model=MODEL,
+        lora='',
+        inference_type=OllamaHelper
+    )
 
+    print(f'===> Lora model inference')
     lora_metrics = inference(
         git_commit=git_commit,
         npc_name=npc_name,
@@ -111,16 +123,40 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         inference_type=ULlamaHelper
     )
 
-    print(f'===> OLlama inference')
+    validation_data = {
+        "validation" : {
+            "base_metrics": base_metrics,
+            "lora_metrics": lora_metrics
+        }
+    }
 
-    base_metrics = inference(
+    update_manifest(manifest_f_path, validation_data)
+
+    from pathlib import Path
+
+    Path(f"{flow_run_dir_path}/reports/").mkdir(parents=True, exist_ok=True)
+
+    # region make .md report
+    md_report = generate_validation_report(
+        manifest=manifest,
+        metrics_base=base_metrics,
+        metrics_lora=lora_metrics,
+    )
+
+    with open(os.path.join(f'{flow_run_dir_path}/reports/', 'report.md'), 'w', encoding="utf-8") as f:
+        f.write(md_report)
+# endregion
+
+# region make metrics plots
+    make_metrics_plot(
         git_commit=git_commit,
         npc_name=npc_name,
         flow_run_id=flow_run_id,
-        model=MODEL,
-        lora='',
-        inference_type=OllamaHelper
+        metrics_model_base=base_metrics,
+        metrics_model_lora=lora_metrics,
     )
+# endregion
+
 
 
 def inference(git_commit: str, npc_name: str, flow_run_id: str, model: str, lora: str, inference_type: Type):
@@ -232,12 +268,17 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, model: str, lora
     print('=== end ===')
 
     metrics = {
-        "total_fails": total_fails,
         "total_requests": total_requests,
+
+        "total_fails": total_fails,
+
         "json_parse_fails": json_parse_fails,
         "json_structure_fails": json_structure_fails,
-        "action_fails": action_fails,
-        "args_fails": args_fails,
+        "total_action_fails": sum(action_fails.values()),
+        "total_args_fails": sum(args_fails.values()),
+
+        "fails_per_action": action_fails,
+        "fails_per_action_args": args_fails,
     }
 
     return metrics
@@ -246,6 +287,6 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, model: str, lora
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = 'trader'
-    FLOW_RUN_ID = 'v_test'
+    FLOW_RUN_ID = 'v1'
 
     process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

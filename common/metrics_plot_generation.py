@@ -84,9 +84,50 @@ def metrics_agg(m):
         "total_fails": m["total_fails"],
         "json_parse_fails": m["json_parse_fails"],
         "json_structure_fails": m["json_structure_fails"],
-        "action_fails": sum(m["action_fails"].values()),
-        "args_fails": sum(m["args_fails"].values()),
+        "action_fails": m['total_action_fails'],
+        "args_fails": m['total_args_fails'],
     }
+
+def make_metrics_plot(
+    git_commit: str, npc_name: str, flow_run_id: str,
+    metrics_model_base: dict,
+    metrics_model_lora: dict,
+):
+    flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
+    total_requests = metrics_model_lora["total_requests"]
+
+    plt = compare_two_models_metrics(
+        metrics_agg(metrics_model_base),
+        metrics_agg(metrics_model_lora),
+        "Base",
+        "LoRA",
+        "Aggregated metrics comparison",
+        total_requests
+    )
+
+    plt.savefig(f"{flow_run_dir_path}/reports/agg_metrics_chart.png", dpi=200, bbox_inches="tight")
+
+    plt = compare_two_models_metrics(
+        metrics_model_base["fails_per_action"],
+        metrics_model_lora["fails_per_action"],
+        "Base",
+        "LoRA",
+        "Failed actions metrics comparison",
+        total_requests
+    )
+
+    plt.savefig(f"{flow_run_dir_path}/reports/actions_metrics_chart.png", dpi=200, bbox_inches="tight")
+
+    plt = compare_two_models_metrics(
+        metrics_model_base["fails_per_action_args"],
+        metrics_model_lora["fails_per_action_args"],
+        "Base",
+        "LoRA",
+        "Failed actions args metrics comparison",
+        total_requests
+    )
+
+    plt.savefig(f"{flow_run_dir_path}/reports/actions_args_metrics_chart.png", dpi=200, bbox_inches="tight")
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
@@ -96,54 +137,33 @@ if __name__ == "__main__":
     metrics_base_model = {
         "total_fails": 10,
         "total_requests": 10,
+
         "json_parse_fails": 4,
         "json_structure_fails": 3,
-        "action_fails": {"buy": 2, "sell": 1},
-        "args_fails": {"gold": 1, "item": 2},
+        "total_action_fails": 3,
+        "total_args_fails": 3,
+
+        "fails_per_action": {"buy": 2, "sell": 1},
+        "fails_per_action_args": {"gold": 1, "item": 2},
     }
 
     metrics_lora_model = {
         "total_fails": 7,
         "total_requests": 10,
+
         "json_parse_fails": 2,
         "json_structure_fails": 1,
-        "action_fails": {"buy": 1, "sell": 0},
-        "args_fails": {"gold": 1, "item": 1},
+        "total_action_fails": 1,
+        "total_args_fails": 2,
+
+        "fails_per_action": {"buy": 1, "sell": 0},
+        "fails_per_action_args": {"gold": 1, "item": 1},
     }
 
-    total_requests = metrics_lora_model["total_requests"]
-
-    flow_run_dir_path = f'{DATA_DIR_NAME}/{COMMIT}/{NPC_NAME}/{FLOW_RUN_ID}'
-
-    plt = compare_two_models_metrics(
-        metrics_agg(metrics_base_model),
-        metrics_agg(metrics_lora_model),
-        "Base",
-        "LoRA",
-        "Aggregated metrics comparison",
-        total_requests
+    make_metrics_plot(
+        COMMIT,
+        NPC_NAME,
+        FLOW_RUN_ID,
+        metrics_base_model,
+        metrics_lora_model,
     )
-
-    plt.savefig(f"{flow_run_dir_path}/agg_metrics_chart.png", dpi=200, bbox_inches="tight")
-
-    plt = compare_two_models_metrics(
-        metrics_base_model["action_fails"],
-        metrics_lora_model["action_fails"],
-        "Base",
-        "LoRA",
-        "Failed actions metrics comparison",
-        total_requests
-    )
-
-    plt.savefig(f"{flow_run_dir_path}/actions_metrics_chart.png", dpi=200, bbox_inches="tight")
-
-    plt = compare_two_models_metrics(
-        metrics_base_model["args_fails"],
-        metrics_lora_model["args_fails"],
-        "Base",
-        "LoRA",
-        "Failed actions args metrics comparison",
-        total_requests
-    )
-
-    plt.savefig(f"{flow_run_dir_path}/actions_args_metrics_chart.png", dpi=200, bbox_inches="tight")
