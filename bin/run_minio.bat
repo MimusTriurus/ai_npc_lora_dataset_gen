@@ -1,1 +1,1 @@
-minio.exe server D:\Projects\Python\ai_npc_lora_dataset_gen\storage
+./minio.exe server D:/Projects/Python/ai_npc_lora_dataset_gen/storage --console-address ":9001"

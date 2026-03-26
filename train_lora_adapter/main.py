@@ -1,9 +1,10 @@
 from prefect import flow
 from prefect.context import get_run_context
-
+import asyncio
 import step_0_train.main as train_lora_adapter
 import step_1_convert_to_gguf.main as convert_lora_to_gguf
 import step_2_validation.main as validation_lora_adapter
+import step_3_save_artifacts.main as save_artifacts
 
 @flow(name="train-lora-adapter-4-ue-npc", log_prints=True)
 async def npc_lora_training_flow(
@@ -51,13 +52,21 @@ async def npc_lora_training_flow(
         flow_run_id=flow_run_id
     )
 
+    save_artifacts.process(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id
+    )
+
 if __name__ == '__main__':
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
     NPC_NAME = 'trader'
     FLOW_RUN_ID = 'v1'
 
-    npc_lora_training_flow(
-        unreal_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID
+    asyncio.run(
+        npc_lora_training_flow(
+            unreal_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID
+        )
     )

@@ -2,7 +2,7 @@ import os
 
 from prefect import flow
 from prefect.context import get_run_context
-
+import asyncio
 import dataset_generation.step_0_get_npc_desc.main as step_0_get_npc_desc
 import dataset_generation.step_1_generate_usr_requests.main as step_1_generate_relevant_usr_requests
 import dataset_generation.step_1_generate_usr_requests.gen_irrelevant_requests as step_1_generate_irrelevant_usr_requests
@@ -73,11 +73,13 @@ if __name__ == "__main__":
     FLOW_RUN_ID = os.getenv('FLOW_RUN_ID', 'v_test')
     DATASET_SIZE_PER_ACTION = os.getenv('DATASET_SIZE_PER_ACTION', 100)
 
-    npc_lora_dataset_gen_flow(
-        unreal_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        dataset_size_per_action=DATASET_SIZE_PER_ACTION,
+    asyncio.run(
+        npc_lora_dataset_gen_flow(
+            unreal_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_size_per_action=DATASET_SIZE_PER_ACTION,
+        )
     )
 
 

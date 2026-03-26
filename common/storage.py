@@ -1,5 +1,5 @@
 from minio import Minio
-from pathlib import Path
+from datetime import timedelta
 import io
 import json
 
@@ -16,8 +16,9 @@ class MinioStorage:
         if not self.client.bucket_exists(bucket):
             self.client.make_bucket(bucket)
 
-    def upload_file(self, key: str, path: str):
+    def upload_file(self, key: str, path: str) -> str:
         self.client.fput_object(self.bucket, key, path)
+        return self.get_url(key)
 
     def download_file(self, key: str, path: str):
         self.client.fget_object(self.bucket, key, path)
@@ -46,3 +47,6 @@ class MinioStorage:
             return True
         except:
             return False
+
+    def get_url(self, key: str, expires: timedelta = timedelta(hours=1)) -> str:
+        return self.client.presigned_get_object(self.bucket, key, expires=expires)
