@@ -5,14 +5,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict
 import subprocess
-from dotenv import load_dotenv
 from prefect import task
 
 from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME, DATASET_DIR_NAME
 from common.helpers import (
     list_files,
     load_jsonl_to_dict,
-    save_dict_records_to_jsonl, update_manifest,
+    save_dict_records_to_jsonl,
+    update_manifest,
 )
 
 black_list_for_dialogs_per_action = os.getenv('STEP_4_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
@@ -129,6 +129,6 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     update_manifest(manifest_f_name, manifest)
 
 if __name__ == '__main__':
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT[:7], npc_name=NPC_NAME, flow_run_id='v1'))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
