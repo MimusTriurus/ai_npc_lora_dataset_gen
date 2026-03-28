@@ -48,6 +48,11 @@ deployments:
           STEP_2_MAX_REQUESTS_COUNT: "100"
           STEP_2_USE_THINKING: "false"
           STEP_2_LLM_CFG_F_PATH: "resources/ullama_cfg.json"
+
+          S3_SECRET_KEY: "minioadmin"
+          S3_ACCESS_KEY: "minioadmin"
+          S3_ENDPOINT: "127.0.0.1:9000"
+          S3_IS_SECURE: "false"
     parameters:
       unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
       npc_name: "trader"
