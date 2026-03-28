@@ -48,8 +48,11 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     dialogs_by_actions_f_lst = list_files(dialogs_per_action_dir_path)
 
-    training_dataset_size_per_action: Dict[str, int] = {}
-    validation_dataset_size_per_action: Dict[str, int] = {}
+    VAL_RATIO = 0.01
+
+    # Phase 1: collect all records grouped by composite action key (name + parameters)
+    # Each entry: (file_stem, dataset_record)
+    records_by_key: Dict[str, list] = {}
 
     for dialog_per_action_f in dialogs_by_actions_f_lst:
         name = Path(dialog_per_action_f).stem
@@ -63,8 +66,6 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         if not is_ok:
             continue
 
-        dataset = []
-
         dialogs_per_action = load_jsonl_to_dict(dialog_per_action_f)
 
         for dialog in dialogs_per_action:
@@ -73,36 +74,53 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 dialog['usr_request'],
                 dialog['npc_response']
             )
-            dataset.append(r)
+            action = dialog['npc_response'].get('action') or {}
+            key = action.get('name', 'unknown') + '|' + json.dumps(action.get('parameters', {}), sort_keys=True)
 
-        random.shuffle(dataset)
+            if key not in records_by_key:
+                records_by_key[key] = []
+            records_by_key[key].append((name, r))
 
-        n = int(len(dataset) * 0.99)
-        training_dataset = dataset[:n]
-        validation_dataset = dataset[n:]
+    # Phase 2: stratified split — VAL_RATIO from each composite key group, min 1
+    training_by_file: Dict[str, list] = {}
+    validation_records = []
+    validation_dataset_size_per_action: Dict[str, int] = {}
 
+    for key, items in records_by_key.items():
+        random.shuffle(items)
+        n_val = max(1, int(len(items) * VAL_RATIO))
+
+        for file_name, record in items[:n_val]:
+            validation_records.append(record)
+
+        for file_name, record in items[n_val:]:
+            if file_name not in training_by_file:
+                training_by_file[file_name] = []
+            training_by_file[file_name].append(record)
+
+        validation_dataset_size_per_action[key] = n_val
+
+    # Phase 3: save training per action file, validation as single combined file
+    training_dataset_size_per_action: Dict[str, int] = {}
+
+    for file_name, records in training_by_file.items():
         target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training'
-        target_fname = os.path.basename(dialog_per_action_f)
-
         save_dict_records_to_jsonl(
-            records=list(training_dataset),
-            output_file=target_fname,
+            records=records,
+            output_file=f'{file_name}.jsonl',
             folder_path=target_dir,
             append=True
         )
+        training_dataset_size_per_action[file_name] = len(records)
 
-        training_dataset_size_per_action[name] = len(training_dataset)
-
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation'
-
-        save_dict_records_to_jsonl(
-            records=list(validation_dataset),
-            output_file=target_fname,
-            folder_path=target_dir,
-            append=True
-        )
-
-        validation_dataset_size_per_action[name] = len(validation_dataset)
+    random.shuffle(validation_records)
+    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation'
+    save_dict_records_to_jsonl(
+        records=validation_records,
+        output_file='validation.jsonl',
+        folder_path=target_dir,
+        append=False
+    )
 
     pipeline_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
 
