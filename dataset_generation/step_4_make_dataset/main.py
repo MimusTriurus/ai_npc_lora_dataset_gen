@@ -35,7 +35,7 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
-@task(name="step_4_make_dataset")
+#@task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
 
@@ -83,15 +83,18 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     # Phase 2: stratified split — VAL_RATIO from each composite key group, min 1
     training_by_file: Dict[str, list] = {}
-    validation_records = []
+    validation_by_action: Dict[str, list] = {}
     validation_dataset_size_per_action: Dict[str, int] = {}
 
     for key, items in records_by_key.items():
+        action_name = key.split('|')[0]
         random.shuffle(items)
         n_val = max(1, int(len(items) * VAL_RATIO))
 
         for file_name, record in items[:n_val]:
-            validation_records.append(record)
+            if action_name not in validation_by_action:
+                validation_by_action[action_name] = []
+            validation_by_action[action_name].append(record)
 
         for file_name, record in items[n_val:]:
             if file_name not in training_by_file:
@@ -100,7 +103,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
         validation_dataset_size_per_action[key] = n_val
 
-    # Phase 3: save training per action file, validation as single combined file
+    # Phase 3: save training per source file, validation per action name
     training_dataset_size_per_action: Dict[str, int] = {}
 
     for file_name, records in training_by_file.items():
@@ -113,14 +116,15 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
         training_dataset_size_per_action[file_name] = len(records)
 
-    random.shuffle(validation_records)
     target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation'
-    save_dict_records_to_jsonl(
-        records=validation_records,
-        output_file='validation.jsonl',
-        folder_path=target_dir,
-        append=False
-    )
+    for action_name, records in validation_by_action.items():
+        random.shuffle(records)
+        save_dict_records_to_jsonl(
+            records=records,
+            output_file=f'{action_name}.jsonl',
+            folder_path=target_dir,
+            append=True
+        )
 
     pipeline_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
 
@@ -149,4 +153,4 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 if __name__ == '__main__':
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v_test'))
