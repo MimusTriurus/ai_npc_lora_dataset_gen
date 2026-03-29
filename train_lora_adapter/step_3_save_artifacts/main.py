@@ -41,6 +41,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             description=f"{npc_name} lora adapter (.gguf)",
         )
 
+# region create .MD report
         key = f'{flow_run_dir_path}/report.md'
         path = f'{flow_run_dir_path}/reports/report.md'
         storage.upload_file(key=key, path=path)
@@ -53,7 +54,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 markdown=markdown_report,
                 description="NPC LoRA adapter training report",
             )
+# endregion
 
+# region upload CHARTS
         key = f'{flow_run_dir_path}/agg_metrics_chart.png'
         path = f'{flow_run_dir_path}/reports/agg_metrics_chart.png'
         link_chart_agg_metrics = storage.upload_file(key=key, path=path)
@@ -81,6 +84,14 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             description="actions_args_metrics_chart",
             key="actions-args-metrics-chart"
         )
+# endregion
+
+# region upload llm config
+        key = f'{flow_run_dir_path}/inference_cfg.json'
+        path = key
+        storage.upload_file(key=key, path=path)
+# endregion
+
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]

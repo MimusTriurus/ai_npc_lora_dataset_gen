@@ -63,22 +63,6 @@ def compare_two_models_metrics(
 
     return plt
 
-
-    buf = io.BytesIO()
-    plt.savefig(f"{flow_run_dir_path}/metrics_chart.png", dpi=200, bbox_inches="tight")
-
-    plt.savefig(buf, format="png")
-    plt.close()
-    buf.seek(0)
-    return
-    # --- артефакт Prefect ---
-    create_artifact(
-        key="llm_metrics_comparison",
-        type="image",
-        description="Comparison of two LLM inference metric sets",
-        data=base64.b64encode(buf.read()).decode("utf-8"),
-    )
-
 def metrics_agg(m):
     return {
         "total_fails": m["total_fails"],
@@ -95,7 +79,7 @@ def make_metrics_plot(
 ):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     total_requests = metrics_model_lora["total_requests"]
-
+    # --------------------------------
     plt = compare_two_models_metrics(
         metrics_agg(metrics_model_base),
         metrics_agg(metrics_model_lora),
@@ -104,9 +88,9 @@ def make_metrics_plot(
         "Aggregated metrics comparison",
         total_requests
     )
-
     plt.savefig(f"{flow_run_dir_path}/reports/agg_metrics_chart.png", dpi=200, bbox_inches="tight")
-
+    plt.close()
+# --------------------------------
     plt = compare_two_models_metrics(
         metrics_model_base["fails_per_action"],
         metrics_model_lora["fails_per_action"],
@@ -115,9 +99,9 @@ def make_metrics_plot(
         "Failed actions metrics comparison",
         total_requests
     )
-
     plt.savefig(f"{flow_run_dir_path}/reports/actions_metrics_chart.png", dpi=200, bbox_inches="tight")
-
+    plt.close()
+# --------------------------------
     plt = compare_two_models_metrics(
         metrics_model_base["fails_per_action_args"],
         metrics_model_lora["fails_per_action_args"],
@@ -126,8 +110,8 @@ def make_metrics_plot(
         "Failed actions args metrics comparison",
         total_requests
     )
-
     plt.savefig(f"{flow_run_dir_path}/reports/actions_args_metrics_chart.png", dpi=200, bbox_inches="tight")
+    plt.close()
 
 if __name__ == "__main__":
     COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]

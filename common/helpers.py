@@ -15,7 +15,6 @@ import glob
 
 
 def camel_to_snake(name: str) -> str:
-    """Превращает CamelCase / PascalCase в snake_case."""
     out = []
     for i, ch in enumerate(name):
         if ch.isupper() and i > 0 and (not name[i-1].isupper()):
@@ -24,7 +23,6 @@ def camel_to_snake(name: str) -> str:
     return ''.join(out)
 
 def unique_stable(seq: Iterable[str]) -> List[str]:
-    """Удаляет дубликаты, сохраняя порядок (stable de-dup)."""
     seen = set()
     res = []
     for x in seq:
@@ -384,3 +382,13 @@ def get_npc_data(git_commit: str, npc_name: str, flow_run_id: str) -> dict:
     with open(npc_desc_f_path, "r", encoding="utf-8") as f:
         npc_data = json.load(f)
         return npc_data
+
+def parse_actions_from_file(path: str):
+    actions = []
+
+    with open(path, "r", encoding="utf-8") as f:
+        actions_desc = json.loads(f.read())
+        for action_name, desc in actions_desc.items():
+            actions.append({"name": action_name})
+
+    return actions

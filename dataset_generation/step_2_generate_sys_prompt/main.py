@@ -1,12 +1,14 @@
 import json
 import os
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from jinja2 import Environment
 from prefect import task
+from ullama_python.ullama import emotions
 
 from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, ACTION_FOR_IRRELEVANT_REQUESTS
-from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature
+from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature, \
+    parse_actions_from_file
 
 from common.ollama_helper import OllamaHelper
 
@@ -86,7 +88,6 @@ def merge_actions(action_data) -> list:
     result = list(merged.values())
     return result
 
-
 def generate_action_description(npc_data: dict):
     if not npc_data:
         return
@@ -112,6 +113,32 @@ def generate_action_description(npc_data: dict):
 def make_irrelevant_action_description() -> Tuple[str, str]:
     description = f"The user asks the NPC about topics completely unrelated to the NPC's role, abilities, or context - such as distant events, unrelated professions, abstract concepts, or impossible tasks - resulting in a request the NPC cannot meaningfully answer."
     return ACTION_FOR_IRRELEVANT_REQUESTS, description
+
+def build_grammar(emotions: List[str], actions: List[dict], use_thinking_mode: bool = False) -> str:
+    header = r'root ::= ThinkOrNothing nl nl Response' if use_thinking_mode else r'root ::= Response'
+
+    thinking_rules = r'''
+ThinkOrNothing ::= ThinkBlock | ""
+ThinkBlock ::= "<think>" ThinkText "</think>"
+Sentence ::= ([^.<] | "<" [^/])* "."
+ThinkText ::= Sentence | Sentence Sentence | Sentence Sentence Sentence
+''' if use_thinking_mode else r''
+
+    common_rules = r'''
+nl ::= "\n"
+Action ::= "{" ws "\"name\":" ws actions "," ws "\"parameters\":" ws dict "}"
+Response ::= "{" ws "\"emotion\":" ws emotions "," ws "\"answer\":" ws string "," ws "\"action\":" ws Action "}"
+string ::= "\"" ([^"]*) "\""
+ws ::= [ \t\n]*
+kv ::= string ws ":" ws string
+dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
+    '''
+
+    emotions_rule = "emotions ::= " + " | ".join([rf'"\"{e}\""' for e in emotions])
+    actions_rule = "actions ::= " + " | ".join([rf'"\"{a["name"]}\""' for a in actions])
+
+    result = f"# GBNF Grammar\n{header}{thinking_rules}{common_rules}\n{emotions_rule}\n{actions_rule}"
+    return result
 
 @task(name="step_2_generate_sys_prompt_and_actions_description")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
@@ -143,17 +170,32 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
         irrelevant_action_name, irrelevant_action_desc = make_irrelevant_action_description()
         actions_desc[irrelevant_action_name] = irrelevant_action_desc
+        actions_desc_f_path = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}"
 
+        # ACTIONS DESCRIPTION
         save_text_file(
-            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
+            folder_path=actions_desc_f_path,
             filename="actions_desc.json",
             content=json.dumps(actions_desc, indent=2)
         )
-
+        # SYSTEM_PROMPT
         save_text_file(
             folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
             filename="system_prompt.txt",
             content=sp
+        )
+
+        # GRAMMAR
+        actions = parse_actions_from_file(f'{actions_desc_f_path}/actions_desc.json')
+        grammar_str = build_grammar(
+            emotions=emotions,
+            actions=actions,
+            use_thinking_mode=False
+        )
+        save_text_file(
+            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
+            filename="grammar.txt",
+            content=grammar_str
         )
 
 if __name__ == "__main__":
