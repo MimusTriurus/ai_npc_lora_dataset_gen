@@ -63,3 +63,19 @@ deployments:
       lora_alpha: 128
       batch_size: 2
     schedule: null
+
+  - name: lora-adapter-validation
+    entrypoint: train_lora_adapter/main.py:npc_lora_validation_flow
+    work_pool:
+      name: local
+      job_variables:
+        stream_output: false
+        env:
+          STEP_2_MAX_REQUESTS_COUNT: "100"
+          STEP_2_USE_THINKING: "false"
+          STEP_2_LLM_CFG_F_PATH: "resources/ullama_cfg.json"
+    parameters:
+      unreal_commit: "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+      npc_name: "trader"
+      flow_run_id: "v1"
+    schedule: null

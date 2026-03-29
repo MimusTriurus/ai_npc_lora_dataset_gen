@@ -205,6 +205,16 @@ def process(
     model.save_pretrained(save_dir, safe_serialization=False)
     tokenizer.save_pretrained(save_dir)
 
+    logger.info("Releasing GPU memory...")
+    del trainer
+    del model
+    del tokenizer
+    import gc
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
     logger.info("\nTraining completed successfully!")
 
     manifest_f_name = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/manifest.json'

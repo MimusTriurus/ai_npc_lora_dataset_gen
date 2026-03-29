@@ -1,12 +1,10 @@
 import json
 import os
-from pathlib import Path
 from typing import List, Tuple, Dict, Type
 from common.constants import *
-from ullama_python.ullama import emotions
 from prefect import task
-
-from common.helpers import update_manifest, parse_actions_from_file
+from pathlib import Path
+from common.helpers import update_manifest
 from common.metrics_plot_generation import make_metrics_plot
 from common.ollama_helper import OllamaHelper, MODEL
 from common.training_results_report_generation import generate_validation_report
@@ -90,15 +88,7 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config
         exit(1)
 
     dataset_files = list_files(validation_dataset_dir_path)
-    '''
-    llm_cfg_f_path = os.getenv('STEP_2_LLM_CFG_F_PATH', '')
-    llm_config = load_ullm_config(f'{llm_cfg_f_path}')
-    llm_config['model'] = model
-    llm_config['lora_adapter'] = lora
-    llm_config['system_prompt'] = get_system_prompt(system_prompt_f_path)
-    grammar_string = get_grammar(grammar_f_path)
-    llm_config['grammar'] = grammar_string
-    '''
+
     ullama = inference_type(inference_config)
 
     total_fails = 0
@@ -128,8 +118,9 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config
             valid_response_dict = pair[1]
             request_dict = json.loads(request)
 
+            llm_model_f_path = inference_config.get('model', '')
             response_dict, think_block = ullama.chat(
-                model=inference_config.get('model', ''),
+                model=llm_model_f_path,
                 system_prompt=inference_config.get('system_prompt', ''),
                 user_prompt=request
             )
@@ -197,7 +188,7 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config
     return metrics
 
 
-#@task(name="step_2_lora_validation")
+@task(name="step_2_lora_validation")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     manifest_f_path = os.path.abspath(f'{flow_run_dir_path}/manifest.json')
@@ -226,8 +217,26 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     ullama_inference_cfg = make_ullama_config(git_commit, npc_name, flow_run_id, llm_model_f_path, lora_adapter_f_path)
     with open(os.path.join(f'{flow_run_dir_path}/', 'inference_cfg.json'), 'w', encoding="utf-8") as f:
         f.write(json.dumps(ullama_inference_cfg, indent=2))
-
     print(f'===> Lora model inference')
+
+    current_dir = Path.cwd()
+    print(f'Current dir: {current_dir}')
+
+    llm_model_f_path = ullama_inference_cfg.get('model', '')
+    llm_model_f_path = Path.joinpath(current_dir,llm_model_f_path).resolve().as_posix()
+    if not os.path.isfile(llm_model_f_path):
+        print(f"[ERROR] LLM model not found {llm_model_f_path}")
+        exit(1)
+
+    lora_adapter_f_path = ullama_inference_cfg.get('lora_adapter', '')
+    lora_adapter_f_path = Path.joinpath(current_dir, lora_adapter_f_path).resolve().as_posix()
+    if not os.path.isfile(lora_adapter_f_path):
+        print(f"[ERROR] LLM LoRA adapter not found {lora_adapter_f_path}")
+        exit(1)
+
+    ullama_inference_cfg['model'] = llm_model_f_path
+    ullama_inference_cfg['lora_adapter'] = lora_adapter_f_path
+
     lora_metrics = inference(
         git_commit=git_commit,
         npc_name=npc_name,
@@ -235,7 +244,6 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         inference_config=ullama_inference_cfg,
         inference_type=ULlamaHelper
     )
-
     validation_data = {
         "validation" : {
             "base_metrics": base_metrics,
@@ -245,11 +253,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     update_manifest(manifest_f_path, validation_data)
 
-    from pathlib import Path
-
     Path(f"{flow_run_dir_path}/reports/").mkdir(parents=True, exist_ok=True)
 
-    # region make .md report
+# region make .md report
     md_report = generate_validation_report(
         manifest=manifest,
         metrics_base=base_metrics,
@@ -271,7 +277,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 # endregion
 
 if __name__ == "__main__":
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
+    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"[:7]
     NPC_NAME = 'trader'
     FLOW_RUN_ID = 'v1'
 

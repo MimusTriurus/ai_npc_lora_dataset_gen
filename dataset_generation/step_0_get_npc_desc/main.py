@@ -1,5 +1,3 @@
-from typing import List
-from dotenv import load_dotenv
 from prefect import task
 import subprocess
 import os
@@ -12,7 +10,7 @@ REPO_ULLAMA_URL = os.getenv('STEP_0_REPO_ULLAMA_URL')
 REPO_ULLAMA_PLUGIN_URL = os.getenv('STEP_0_REPO_ULLAMA_PLUGIN_URL')
 UE_DIR_PATH = os.getenv('STEP_0_UE_DIR_PATH')
 PROJECT_DIR = os.getenv('STEP_0_PROJECT_DIR')
-PROJECT_DIR = Path(PROJECT_DIR).resolve()
+#PROJECT_DIR = Path(PROJECT_DIR).resolve()
 PROJECT_F_NAME = os.getenv('STEP_0_PROJECT_F_NAME')
 BRANCH = os.getenv('STEP_0_BRANCH')
 # endregion
@@ -31,22 +29,25 @@ def run(cmd, cwd=None):
 
 
 def ensure_repo():
-    if not PROJECT_DIR.exists():
+    project_dir = Path(PROJECT_DIR).resolve()
+    if not project_dir.exists():
         print("Cloning repository...")
-        run(["git", "clone", REPO_ULLAMA_URL, str(PROJECT_DIR)])
+        run(["git", "clone", REPO_ULLAMA_URL, str(project_dir)])
         run(["git", "clone", REPO_ULLAMA_PLUGIN_URL, str(ULLAMA_PLUGIN_DIR)])
     else:
         print("Repository already exists")
 
 
 def update_repo():
-    run(["git", "fetch", "--all"], cwd=PROJECT_DIR)
-    run(["git", "checkout", BRANCH], cwd=PROJECT_DIR)
-    run(["git", "pull"], cwd=PROJECT_DIR)
+    project_dir = Path(PROJECT_DIR).resolve()
+    run(["git", "fetch", "--all"], cwd=project_dir)
+    run(["git", "checkout", BRANCH], cwd=project_dir)
+    run(["git", "pull"], cwd=project_dir)
 
 
 def checkout_commit(git_commit: str):
-    run(["git", "checkout", git_commit], cwd=PROJECT_DIR)
+    project_dir = Path(PROJECT_DIR).resolve()
+    run(["git", "checkout", git_commit], cwd=project_dir)
 
 
 def build_unreal_project():
@@ -97,6 +98,6 @@ def process(git_commit: str, npc_name: str, flow_run_id: str = None):
     extract_npc_from_dataasset(npc_name=npc_name, git_commit=git_commit, flow_run_id=flow_run_id)
 
 if __name__ == "__main__":
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
+    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"
     NPC_NAME = 'trader'
     exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))

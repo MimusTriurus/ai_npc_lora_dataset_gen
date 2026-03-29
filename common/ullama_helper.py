@@ -80,8 +80,10 @@ class ULlamaHelper:
             # Reload model / reinit worker only when something changed
             if model and model != self._loaded_model_path:
                 self._load_model(model, system_prompt)
+                print(f'[WARNING] Reloading model "{model}"')
             elif system_prompt != self._loaded_system_prompt:
                 self._reinit_worker(system_prompt)
+                print(f'[WARNING] Reloading worker "{model}"')
 
             full_prompt = self._build_prompt(user_prompt, history)
             raw_response = self._ask(full_prompt)
@@ -112,16 +114,15 @@ class ULlamaHelper:
         return cfg
 
     def _load_model(self, model_path: str, system_prompt: str) -> None:
-        """Tear down any existing model+worker and load a new one."""
         self._teardown()
 
         cfg = self._build_config(model_path, system_prompt)
         cfg_bytes = json.dumps(cfg).encode("utf-8")
-
         self._api = ULlamaWrapper()
         self._model = self._api.lib.ullama_loadModel(cfg_bytes)
         self._worker = self._api.lib.ullama_worker_make()
-
+        print(f'[INFO] loaded model "{self._model}"')
+        print(f'[INFO] loaded worker "{self._worker}"')
         if not self._api.lib.ullama_worker_init(self._worker, cfg_bytes, self._model):
             self._teardown()
             raise RuntimeError("ullama_worker_init failed — check model / config paths")
