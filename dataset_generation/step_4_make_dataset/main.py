@@ -48,11 +48,13 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     dialogs_by_actions_f_lst = list_files(dialogs_per_action_dir_path)
 
-    VAL_RATIO = 0.01
+    VAL_RATIO = 0.1
 
-    # Phase 1: collect all records grouped by action name
-    # Each entry: (file_stem, dataset_record)
-    records_by_action: Dict[str, list] = {}
+    # Phase 1: collect records by composite key (action name + parameters)
+    # records_by_composite: "SellItem|{"item":"pistol"}" -> [(file_stem, record), ...]
+    # variants_by_action:   "SellItem" -> ["SellItem|{...}", ...]
+    records_by_composite: Dict[str, list] = {}
+    variants_by_action: Dict[str, list] = {}
 
     for dialog_per_action_f in dialogs_by_actions_f_lst:
         name = Path(dialog_per_action_f).stem
@@ -76,28 +78,41 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             )
             action = dialog['npc_response'].get('action') or {}
             action_name = action.get('name', 'unknown')
+            composite_key = action_name + '|' + json.dumps(action.get('parameters', {}), sort_keys=True)
 
-            if action_name not in records_by_action:
-                records_by_action[action_name] = []
-            records_by_action[action_name].append((name, r))
+            if composite_key not in records_by_composite:
+                records_by_composite[composite_key] = []
+                variants_by_action.setdefault(action_name, []).append(composite_key)
+            records_by_composite[composite_key].append((name, r))
 
-    # Phase 2: stratified split — VAL_RATIO from each action name group, min 1
+    # Phase 2: stratified split — equal per variant within each action, min 1 per variant
+    # n_val_per_variant = max(1, int(min_variant_size * VAL_RATIO))
     training_by_file: Dict[str, list] = {}
     validation_by_action: Dict[str, list] = {}
     validation_dataset_size_per_action: Dict[str, int] = {}
 
-    for action_name, items in records_by_action.items():
-        random.shuffle(items)
-        n_val = max(1, int(len(items) * VAL_RATIO))
+    for action_name, composite_keys in variants_by_action.items():
+        min_variant_size = min(len(records_by_composite[k]) for k in composite_keys)
+        n_val_per_variant = max(1, int(min_variant_size * VAL_RATIO))
 
-        validation_by_action[action_name] = [record for _, record in items[:n_val]]
+        validation_by_action[action_name] = []
 
-        for file_name, record in items[n_val:]:
-            if file_name not in training_by_file:
-                training_by_file[file_name] = []
-            training_by_file[file_name].append(record)
+        for composite_key in composite_keys:
+            items = records_by_composite[composite_key]
+            random.shuffle(items)
 
-        validation_dataset_size_per_action[action_name] = n_val
+            for _, record in items[:n_val_per_variant]:
+                validation_by_action[action_name].append(record)
+
+            for file_name, record in items[n_val_per_variant:]:
+                training_by_file.setdefault(file_name, []).append(record)
+
+            params = composite_key.split('|', 1)[1]
+            print(f'  val {action_name} [{params}]: {n_val_per_variant}')
+
+        total = len(validation_by_action[action_name])
+        validation_dataset_size_per_action[action_name] = total
+        print(f'val {action_name} total: {total}')
 
     # Phase 3: save training per source file, validation per action name
     training_dataset_size_per_action: Dict[str, int] = {}
@@ -147,6 +162,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     update_manifest(manifest_f_name, manifest)
 
 if __name__ == '__main__':
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
+    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"[:7]
     NPC_NAME = "trader"
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v_test'))
+    FLOW_RUN_ID = "v1"
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))
