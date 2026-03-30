@@ -35,7 +35,7 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
-#@task(name="step_4_make_dataset")
+@task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
 
@@ -50,9 +50,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     VAL_RATIO = 0.01
 
-    # Phase 1: collect all records grouped by composite action key (name + parameters)
+    # Phase 1: collect all records grouped by action name
     # Each entry: (file_stem, dataset_record)
-    records_by_key: Dict[str, list] = {}
+    records_by_action: Dict[str, list] = {}
 
     for dialog_per_action_f in dialogs_by_actions_f_lst:
         name = Path(dialog_per_action_f).stem
@@ -75,33 +75,29 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 dialog['npc_response']
             )
             action = dialog['npc_response'].get('action') or {}
-            key = action.get('name', 'unknown') + '|' + json.dumps(action.get('parameters', {}), sort_keys=True)
+            action_name = action.get('name', 'unknown')
 
-            if key not in records_by_key:
-                records_by_key[key] = []
-            records_by_key[key].append((name, r))
+            if action_name not in records_by_action:
+                records_by_action[action_name] = []
+            records_by_action[action_name].append((name, r))
 
-    # Phase 2: stratified split — VAL_RATIO from each composite key group, min 1
+    # Phase 2: stratified split — VAL_RATIO from each action name group, min 1
     training_by_file: Dict[str, list] = {}
     validation_by_action: Dict[str, list] = {}
     validation_dataset_size_per_action: Dict[str, int] = {}
 
-    for key, items in records_by_key.items():
-        action_name = key.split('|')[0]
+    for action_name, items in records_by_action.items():
         random.shuffle(items)
         n_val = max(1, int(len(items) * VAL_RATIO))
 
-        for file_name, record in items[:n_val]:
-            if action_name not in validation_by_action:
-                validation_by_action[action_name] = []
-            validation_by_action[action_name].append(record)
+        validation_by_action[action_name] = [record for _, record in items[:n_val]]
 
         for file_name, record in items[n_val:]:
             if file_name not in training_by_file:
                 training_by_file[file_name] = []
             training_by_file[file_name].append(record)
 
-        validation_dataset_size_per_action[key] = n_val
+        validation_dataset_size_per_action[action_name] = n_val
 
     # Phase 3: save training per source file, validation per action name
     training_dataset_size_per_action: Dict[str, int] = {}
