@@ -112,7 +112,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
 
 if __name__ == '__main__':
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
-    NPC_NAME = "trader"
-    FLOW_RUN_ID = "v_test"
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
     exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))

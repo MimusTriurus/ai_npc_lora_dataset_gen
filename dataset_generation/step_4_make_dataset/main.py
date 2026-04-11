@@ -162,7 +162,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     update_manifest(manifest_f_name, manifest)
 
 if __name__ == '__main__':
-    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"[:7]
-    NPC_NAME = "trader"
-    FLOW_RUN_ID = "v1"
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
     exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))

@@ -98,6 +98,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str = None):
     extract_npc_from_dataasset(npc_name=npc_name, git_commit=git_commit, flow_run_id=flow_run_id)
 
 if __name__ == "__main__":
-    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"
-    NPC_NAME = 'trader'
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id='v1'))
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
+    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))

@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+import warnings
 import torch
 import os
 from datasets import load_dataset, Dataset
@@ -15,12 +15,24 @@ from common.helpers import update_manifest
 from prefect import task
 from common.constants import *
 
+warnings.filterwarnings("ignore")
+logging.getLogger("trl").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
+os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+os.environ["TRL_DISABLE_RICH"] = "1"
+logging.getLogger("dis").setLevel(logging.CRITICAL)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
 
 def analyze_token_lengths(dataset: Dataset, tokenizer: AutoTokenizer) -> int:
     lengths = []
@@ -234,7 +246,7 @@ def process(
 
 
 if __name__ == "__main__":
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"[:7]
-    NPC_NAME = 'trader'
-    FLOW_RUN_ID = 'v1'
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
     process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

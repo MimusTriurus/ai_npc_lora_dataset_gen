@@ -68,9 +68,9 @@ async def npc_lora_dataset_gen_flow(
 
 
 if __name__ == "__main__":
-    COMMIT = os.getenv('COMMIT', "60e7a243ce941bd02e08429d4dbbdaecea1ca076")
-    NPC_NAME = os.getenv('NPC_NAME', 'trader')
-    FLOW_RUN_ID = os.getenv('FLOW_RUN_ID', 'v_test')
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
     DATASET_SIZE_PER_ACTION = os.getenv('DATASET_SIZE_PER_ACTION', 100)
 
     asyncio.run(

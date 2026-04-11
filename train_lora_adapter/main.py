@@ -1,3 +1,5 @@
+import os
+
 from prefect import flow
 from prefect.context import get_run_context
 import asyncio
@@ -82,9 +84,9 @@ async def npc_lora_validation_flow(
     )
 
 if __name__ == '__main__':
-    COMMIT = "60e7a243ce941bd02e08429d4dbbdaecea1ca076"
-    NPC_NAME = 'trader'
-    FLOW_RUN_ID = 'v1'
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
 
     asyncio.run(
         npc_lora_validation_flow(
