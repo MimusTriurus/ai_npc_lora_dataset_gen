@@ -392,3 +392,15 @@ def parse_actions_from_file(path: str):
             actions.append({"name": action_name})
 
     return actions
+
+def read_dataset_file(path: str) -> List[Tuple[str, dict]]:
+    dataset_pairs: List[Tuple[str, dict]] = []
+    with open(path, "r", encoding="utf-8") as f:
+        data_lines = f.readlines()
+        for line in data_lines:
+            json_data = json.loads(line)
+            usr_request = json_data['messages'][1]['content']
+            ai_response = json.loads(json_data['messages'][2]['content'])
+            pair = (usr_request, ai_response)
+            dataset_pairs.append(pair)
+    return dataset_pairs

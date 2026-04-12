@@ -144,11 +144,17 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     NPC_DESC_F_PATH = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
     INFERENCE_SP_F_PATH = os.getenv("STEP_2_INFERENCE_SP_F_PATH")
+    TOOL_CALLING_SP_F_PATH = os.getenv("STEP_2_TOOL_CALLING_SP_F_PATH", "dataset_generation/step_2_generate_sys_prompt/tool_calling_system_prompt.j2")
 
     SYSTEM_PROMPT_TEMPLATE = ''
     with open(INFERENCE_SP_F_PATH, "r", encoding="utf-8") as f:
         SYSTEM_PROMPT_TEMPLATE += f.read()
     sp_template = env.from_string(SYSTEM_PROMPT_TEMPLATE)
+
+    TOOL_CALLING_SYSTEM_PROMPT_TEMPLATE = ''
+    with open(TOOL_CALLING_SP_F_PATH, "r", encoding="utf-8") as f:
+        TOOL_CALLING_SYSTEM_PROMPT_TEMPLATE += f.read()
+    tc_sp_template = env.from_string(TOOL_CALLING_SYSTEM_PROMPT_TEMPLATE)
 
     with open(NPC_DESC_F_PATH, "r", encoding="utf-8") as f:
         npcs_desc = json.load(f)
@@ -161,6 +167,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             "actions_rules": actions_rules
         }
         sp = sp_template.render(params)
+        tc_sp = tc_sp_template.render(params)
 
         actions_desc: Dict[str, str] = dict()
         for action in npcs_desc["ActionData"]:
@@ -183,6 +190,13 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
             filename="system_prompt.txt",
             content=sp
+        )
+
+        # TOOL CALLING SYSTEM_PROMPT
+        save_text_file(
+            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
+            filename="tool_calling_system_prompt.txt",
+            content=tc_sp
         )
 
         # GRAMMAR
