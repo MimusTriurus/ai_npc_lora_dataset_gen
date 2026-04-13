@@ -89,7 +89,7 @@ if __name__ == '__main__':
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
 
     asyncio.run(
-        npc_lora_validation_flow(
+        npc_lora_training_flow(
             unreal_commit=COMMIT,
             npc_name=NPC_NAME,
             flow_run_id=FLOW_RUN_ID

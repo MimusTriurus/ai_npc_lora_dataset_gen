@@ -66,6 +66,12 @@ async def npc_lora_dataset_gen_flow(
         flow_run_id=flow_run_id,
     )
 
+    step_5_make_knowledge_base.process(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id,
+    )
+
 
 if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")
