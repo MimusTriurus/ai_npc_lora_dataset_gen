@@ -17,24 +17,32 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     with open(manifest_f_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
-        model_name = manifest["lora_training"]["model_name"].lower()
+        model_name = os.getenv('STEP_0_MODEL_NAME', '').lower()
+        if 'lora_training' in manifest:
+            model_name = manifest["lora_training"]["model_name"].lower()
+
+        if not model_name:
+            exit(-1)
+
         llm_model_f_path = f'{DATA_DIR_NAME}/models/{model_name}_q4_k_m.gguf'
         lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_lora_f16.gguf'
 
-    print(f'===> Base model inference')
+    ollama_usage = False
+    if ollama_usage:
+        print(f'===> Base model inference')
 
-    ollama_inference_cfg = {
-        'model': MODEL,
-        'system_prompt': get_system_prompt(f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'),
-    }
+        ollama_inference_cfg = {
+            'model': MODEL,
+            'system_prompt': get_system_prompt(f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'),
+        }
 
-    base_metrics = inference(
-        git_commit=git_commit,
-        npc_name=npc_name,
-        flow_run_id=flow_run_id,
-        inference_config=ollama_inference_cfg,
-        inference_type=OllamaHelper
-    )
+        base_metrics = inference(
+            git_commit=git_commit,
+            npc_name=npc_name,
+            flow_run_id=flow_run_id,
+            inference_config=ollama_inference_cfg,
+            inference_type=OllamaHelper
+        )
 
     ullama_inference_cfg = make_ullama_config(git_commit, npc_name, flow_run_id, llm_model_f_path, lora_adapter_f_path)
     with open(os.path.join(f'{flow_run_dir_path}/', 'inference_cfg.json'), 'w', encoding="utf-8") as f:
@@ -64,6 +72,16 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         inference_config=ullama_inference_cfg,
         inference_type=ULlamaHelper
     )
+    ullama_inference_cfg['lora_adapter'] = ''
+
+    base_metrics = inference(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id,
+        inference_config=ullama_inference_cfg,
+        inference_type=ULlamaHelper
+    )
+
     validation_data = {
         "validation" : {
             "base_metrics": base_metrics,
@@ -97,8 +115,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 # endregion
 
 if __name__ == "__main__":
-    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"[:7]
-    NPC_NAME = 'trader'
-    FLOW_RUN_ID = 'v1'
+    COMMIT = os.getenv("COMMIT")
+    NPC_NAME = os.getenv("NPC_NAME")
+    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
 
     process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)

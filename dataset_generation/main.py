@@ -9,6 +9,8 @@ import dataset_generation.step_1_generate_usr_requests.gen_irrelevant_requests a
 import dataset_generation.step_2_generate_sys_prompt.main as step_2_generate_sys_prompt
 import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_npc_answers
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
+import dataset_generation.step_5_make_knowledge_base.main as step_5_make_knowledge_base
+import dataset_generation.step_6_validate_knowledge_base.main as step_6_validate_knowledge_base
 
 @flow(name="lora-dataset-generation", log_prints=True)
 async def npc_lora_dataset_gen_flow(

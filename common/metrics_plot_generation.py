@@ -37,8 +37,9 @@ def compare_two_models_metrics(
     ax.set_xticklabels(categories, rotation=30)
     ax.set_ylabel("Count")
 
-    step = min(5, total_requests)
-    ax.set_yticks([i for i in range(total_requests) if i % step == 0])
+    max_ticks = 10
+    step = max(1, -(-total_requests // max_ticks))  # ceil division
+    ax.set_yticks(range(0, total_requests + 1, step))
 
     ax.set_title(title)
     ax.legend()
