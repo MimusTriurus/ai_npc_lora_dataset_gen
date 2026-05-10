@@ -56,6 +56,7 @@ def process(
         git_commit: str,
         npc_name: str,
         flow_run_id: str,
+        dataset_name: str,
         base_model: str = "Qwen3-4B-Instruct-2507",
         num_train_epoch: int = 1,
         lora_rank: int = 64,
@@ -78,7 +79,7 @@ def process(
     eval_steps = int(os.getenv('STEP_0_EVAL_STEPS', 100))
 
     logger.info("=" * 50)
-    logger.info("TRAINING CONFIGURATION")
+    logger.info(f"TRAINING CONFIGURATION FOR: {dataset_name}")
     logger.info("=" * 50)
     logger.info(f"Model: {base_model}")
     logger.info(f"Model path: {model_path}")
@@ -92,8 +93,8 @@ def process(
     dataset = load_dataset(
         "json",
         data_files={
-            "train": f'{dataset_dir}/training/*.jsonl',
-            "validation": f'{dataset_dir}/validation/*.jsonl',
+            "train": f'{dataset_dir}/{dataset_name}_training/*.jsonl',
+            "validation": f'{dataset_dir}/{dataset_name}_validation/*.jsonl',
         },
     )
 
@@ -165,7 +166,7 @@ def process(
     )
 
     sft_config = SFTConfig(
-        output_dir=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}",
+        output_dir=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}",
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,
@@ -212,7 +213,7 @@ def process(
     logger.info("Starting training...")
     trainer.train()
 
-    save_dir = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}/final_adapter"
+    save_dir = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}/final_adapter"
     logger.info(f"Saving model to: {save_dir}")
     model.save_pretrained(save_dir, safe_serialization=False)
     tokenizer.save_pretrained(save_dir)
@@ -232,7 +233,7 @@ def process(
     manifest_f_name = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/manifest.json'
 
     manifest = {
-        'lora_training': {
+        f'{dataset_name}_lora_training': {
             'model_name': base_model,
             'num_train_epoch': num_train_epoch,
             'learning_rate': learning_rate,
@@ -249,4 +250,11 @@ if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)
+    DATASET_NAME = os.getenv("DATASET_NAME", 'chat')
+
+    process(
+        git_commit=COMMIT,
+        npc_name=NPC_NAME,
+        flow_run_id=FLOW_RUN_ID,
+        dataset_name=DATASET_NAME,
+    )

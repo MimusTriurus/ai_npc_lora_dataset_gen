@@ -12,8 +12,9 @@ def process(
         npc_name: str,
         flow_run_id: str,
         base_model: str,
+        dataset_name: str
 ):
-    LORA_PATH = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}"
+    LORA_PATH = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}"
     LORA_ADAPTER_PATH = f"{LORA_PATH}/final_adapter/"
 
     BASE_MODEL = base_model
@@ -21,7 +22,7 @@ def process(
 
     OUT_BASE_MODEL_DIR = f"{DATA_DIR_NAME}/models/"
     OUT_BASE_MODEL_FILE = Path(f"{OUT_BASE_MODEL_DIR}/{BASE_MODEL.lower()}_{OUT_FORMAT.lower()}.gguf")
-    OUT_LORA_ADAPTER_FILE = Path(f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GGUF_DIR_NAME}/{BASE_MODEL.lower()}_lora_{OUT_FORMAT}.gguf")
+    OUT_LORA_ADAPTER_FILE = Path(f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GGUF_DIR_NAME}/{BASE_MODEL.lower()}_{dataset_name}_lora_{OUT_FORMAT}.gguf")
 
     os.makedirs(os.path.dirname(OUT_BASE_MODEL_FILE), exist_ok=True)
     os.makedirs(os.path.dirname(OUT_LORA_ADAPTER_FILE), exist_ok=True)
@@ -79,4 +80,12 @@ if __name__ == '__main__':
     COMMIT = os.getenv("COMMIT")
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID)
+    DATASET_NAME = os.getenv("DATASET_NAME", 'chat')
+    BASE_MODEL = os.getenv("STEP_1_BASE_MODEL")
+    process(
+        git_commit=COMMIT,
+        npc_name=NPC_NAME,
+        flow_run_id=FLOW_RUN_ID,
+        base_model=BASE_MODEL,
+        dataset_name=DATASET_NAME,
+    )

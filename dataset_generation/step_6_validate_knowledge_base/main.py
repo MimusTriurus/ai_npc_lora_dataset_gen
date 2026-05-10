@@ -10,11 +10,11 @@ from common.helpers import read_file, list_files, read_dataset_file
 from common.inference import make_ullama_config
 from common.ullama_helper import ULlamaHelper
 
-def process(git_commit: str, npc_name: str, flow_run_id: str):
+def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_name: str):
     black_list = [
         'NotEnoughGoldToBuy',
         'OutOfStock',
-        'DoNothing'
+        #'DoNothing'
     ]
     threshold = 0.7
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
@@ -25,7 +25,10 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         manifest = json.load(f)
         model_name = manifest["lora_training"]["model_name"].lower()
         llm_model_f_path = f'{DATA_DIR_NAME}/models/{model_name}_q4_k_m.gguf'
-        lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_lora_f16.gguf'
+        #llm_model_f_path = f'input_data/models/qwen3.5-4b_q4_k_m.gguf'
+        lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_{dataset_name}_lora_f16.gguf'
+        #lora_adapter_f_path = f'{flow_run_dir_path}/{GGUF_DIR_NAME}/{model_name}_lora_f16.gguf'
+
     ullama_inference_cfg = make_ullama_config(
         git_commit=git_commit,
         npc_name=npc_name,
@@ -34,6 +37,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         lora=lora_adapter_f_path,
         sp='tool_calling_system_prompt.txt'
     )
+    ullama_inference_cfg['temp'] = 0.0
     #del ullama_inference_cfg['lora_adapter']
     del ullama_inference_cfg['grammar']
 
@@ -65,7 +69,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 api.lib.ullama_kb_addChunk(kb_worker_ptr, request.encode(ENCODING))
             api.lib.ullama_kb_update(kb_worker_ptr)
 
-            validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/validation/*.jsonl'
+            validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/{dataset_name}_validation/*.jsonl'
 
             total_requests = 0
 
@@ -98,13 +102,16 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                         user_prompt=request
                     )
 
-                    if target_action != llm_found_action:
-                        llm_fails[file_name] += 1
-
                     request_obj = json.loads(request)
                     request_obj = {
                         "request_of_user": request_obj['request']
                     }
+
+                    if valid_response_dict != llm_found_action:
+                        llm_fails[file_name] += 1
+                        print(f'   LLM Error: {request_obj["request_of_user"]}')
+                        print(f'       valid: {valid_response_dict["action"]} != found: {llm_found_action["action"]}')
+
 
                     request = json.dumps(request_obj).encode(ENCODING)
 
@@ -119,6 +126,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                         found_action = chunk["action"]
                         if found_action != target_action:
                             emb_fails[file_name] += 1
+                            print(f'   EMB Error: {request_obj["request_of_user"]}')
+                            print(f'       valid: {target_action} != found: {found_action}')
         else:
             print(f'Error on init knowledge base')
         print()
@@ -136,4 +145,12 @@ if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))
+    DATASET_NAME = os.getenv("DATASET_NAME", 'chat')
+    exit(
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_name=DATASET_NAME
+        )
+    )

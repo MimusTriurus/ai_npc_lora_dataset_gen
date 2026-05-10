@@ -141,7 +141,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     training_dataset_size_per_action: Dict[str, int] = {}
 
     for file_name, records in training_by_file.items():
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training'
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/chat_training'
         save_dict_records_to_jsonl(
             records=records,
             output_file=f'{file_name}.jsonl',
@@ -150,7 +150,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
         training_dataset_size_per_action[file_name] = len(records)
 
-    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation'
+    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/chat_validation'
     for action_name, records in validation_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
@@ -161,7 +161,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
 
     for file_name, records in training_chat_by_file.items():
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training_tool_calling'
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/tool_calling_training'
         save_dict_records_to_jsonl(
             records=records,
             output_file=f'{file_name}.jsonl',
@@ -169,7 +169,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             append=True
         )
 
-    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation_tool_calling'
+    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/tool_calling_validation'
     for action_name, records in validation_chat_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
