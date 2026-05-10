@@ -35,23 +35,27 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
-def create_chat_format_record(user_request: dict, npc_response: dict) -> dict:
+def create_chat_format_record(sp: str, user_request: dict, npc_response: dict) -> dict:
     return {
         "messages": [
-            {"role": "system", "content": ""},
+            {"role": "system", "content": sp},
             {"role": "user", "content": json.dumps({"request": user_request.get("request", "")})},
             {"role": "assistant", "content": json.dumps({"action": npc_response.get("action", {})})}
         ]
     }
 
-@task(name="step_4_make_dataset")
+#@task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
+    tool_calling_sp = ''
 
     sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'
+    tc_sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/tool_calling_system_prompt.txt'
 
     with open(sp_f_path, 'r', encoding='utf-8') as f:
         inference_sp += f.read()
+    with open(tc_sp_f_path, 'r', encoding='utf-8') as f:
+        tool_calling_sp += f.read()
 
     dialogs_per_action_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_NPC_ANSWER_DIR_NAME}/*.jsonl'
 
@@ -86,6 +90,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 dialog['npc_response']
             )
             r_chat = create_chat_format_record(
+                tool_calling_sp,
                 dialog['usr_request'],
                 dialog['npc_response']
             )
@@ -156,7 +161,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
 
     for file_name, records in training_chat_by_file.items():
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training_chat'
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training_tool_calling'
         save_dict_records_to_jsonl(
             records=records,
             output_file=f'{file_name}.jsonl',
@@ -164,7 +169,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             append=True
         )
 
-    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation_chat'
+    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation_tool_calling'
     for action_name, records in validation_chat_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
