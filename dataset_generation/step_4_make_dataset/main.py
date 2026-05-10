@@ -35,6 +35,15 @@ def create_dataset_record(sp, user_request: dict, npc_response: dict, use_thinki
     }
     return base
 
+def create_chat_format_record(user_request: dict, npc_response: dict) -> dict:
+    return {
+        "messages": [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": json.dumps({"request": user_request.get("request", "")})},
+            {"role": "assistant", "content": json.dumps({"action": npc_response.get("action", {})})}
+        ]
+    }
+
 @task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
@@ -76,6 +85,10 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
                 dialog['usr_request'],
                 dialog['npc_response']
             )
+            r_chat = create_chat_format_record(
+                dialog['usr_request'],
+                dialog['npc_response']
+            )
             action = dialog['npc_response'].get('action') or {}
             action_name = action.get('name', 'unknown')
             composite_key = action_name + '|' + json.dumps(action.get('parameters', {}), sort_keys=True)
@@ -83,12 +96,14 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             if composite_key not in records_by_composite:
                 records_by_composite[composite_key] = []
                 variants_by_action.setdefault(action_name, []).append(composite_key)
-            records_by_composite[composite_key].append((name, r))
+            records_by_composite[composite_key].append((name, r, r_chat))
 
     # Phase 2: stratified split — equal per variant within each action, min 1 per variant
     # n_val_per_variant = max(1, int(min_variant_size * VAL_RATIO))
     training_by_file: Dict[str, list] = {}
+    training_chat_by_file: Dict[str, list] = {}
     validation_by_action: Dict[str, list] = {}
+    validation_chat_by_action: Dict[str, list] = {}
     validation_dataset_size_per_action: Dict[str, int] = {}
 
     for action_name, composite_keys in variants_by_action.items():
@@ -96,16 +111,19 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         n_val_per_variant = max(1, int(min_variant_size * VAL_RATIO))
 
         validation_by_action[action_name] = []
+        validation_chat_by_action[action_name] = []
 
         for composite_key in composite_keys:
             items = records_by_composite[composite_key]
             random.shuffle(items)
 
-            for _, record in items[:n_val_per_variant]:
+            for _, record, record_chat in items[:n_val_per_variant]:
                 validation_by_action[action_name].append(record)
+                validation_chat_by_action[action_name].append(record_chat)
 
-            for file_name, record in items[n_val_per_variant:]:
+            for file_name, record, record_chat in items[n_val_per_variant:]:
                 training_by_file.setdefault(file_name, []).append(record)
+                training_chat_by_file.setdefault(file_name, []).append(record_chat)
 
             params = composite_key.split('|', 1)[1]
             print(f'  val {action_name} [{params}]: {n_val_per_variant}')
@@ -129,6 +147,25 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation'
     for action_name, records in validation_by_action.items():
+        random.shuffle(records)
+        save_dict_records_to_jsonl(
+            records=records,
+            output_file=f'{action_name}.jsonl',
+            folder_path=target_dir,
+            append=True
+        )
+
+    for file_name, records in training_chat_by_file.items():
+        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/training_chat'
+        save_dict_records_to_jsonl(
+            records=records,
+            output_file=f'{file_name}.jsonl',
+            folder_path=target_dir,
+            append=True
+        )
+
+    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/validation_chat'
+    for action_name, records in validation_chat_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
             records=records,
