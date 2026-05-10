@@ -14,6 +14,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     black_list = [
         'NotEnoughGoldToBuy',
         'OutOfStock',
+        'DoNothing'
     ]
     threshold = 0.7
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
@@ -50,7 +51,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         kb_worker_ptr = api.lib.ullama_kb_make()
         kb_cfg = {
           "model": emb_model_f_path,
-          "n_gpu_layers": 1
+          "n_gpu_layers": 0
         }
         kb_cgf_str = json.dumps(kb_cfg).encode(ENCODING)
         kb_init_result = api.lib.ullama_kb_init(kb_worker_ptr, kb_cgf_str, emb_model)
@@ -102,8 +103,6 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
                     request_obj = json.loads(request)
                     request_obj = {
-                        "context": "",
-                        "state_of_user": "User has 100 gold",
                         "request_of_user": request_obj['request']
                     }
 
