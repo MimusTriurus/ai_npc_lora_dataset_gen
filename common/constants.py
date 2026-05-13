@@ -7,6 +7,7 @@ EMBEDDING_DATASET_DIR_NAME = '3_embedding_dataset'
 MODELS_DIR_NAME = 'models'
 
 LORA_DIR_NAME = 'training/0_lora'
+LORA_EMBEDDING_DIR_NAME = 'training/0_lora_embedding'
 GGUF_DIR_NAME = 'training/1_gguf'
 VALIDATION_RESULT_DIR_NAME = 'training/2_validation'
 
