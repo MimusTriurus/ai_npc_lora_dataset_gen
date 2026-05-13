@@ -9,6 +9,7 @@ import dataset_generation.step_1_generate_usr_requests.gen_irrelevant_requests a
 import dataset_generation.step_2_generate_sys_prompt.main as step_2_generate_sys_prompt
 import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_npc_answers
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
+import dataset_generation.step_4_make_embedding_dataset.main as step_4_make_embedding_dataset
 import dataset_generation.step_5_make_knowledge_base.main as step_5_make_knowledge_base
 import dataset_generation.step_6_validate_knowledge_base.main as step_6_validate_knowledge_base
 
@@ -63,6 +64,12 @@ async def npc_lora_dataset_gen_flow(
     )
 
     step_4_make_dataset.process(
+        git_commit=git_commit,
+        npc_name=npc_name,
+        flow_run_id=flow_run_id,
+    )
+
+    step_4_make_embedding_dataset.process(
         git_commit=git_commit,
         npc_name=npc_name,
         flow_run_id=flow_run_id,

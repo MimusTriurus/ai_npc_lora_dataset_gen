@@ -3,6 +3,7 @@ GEN_USR_REQUEST_DIR_NAME = '0_generate_usr_requests'
 GEN_SYS_PROMPT_DIR_NAME = '1_generate_system_prompt_data'
 GEN_NPC_ANSWER_DIR_NAME = '2_generate_npc_answers'
 DATASET_DIR_NAME = '3_dataset'
+EMBEDDING_DATASET_DIR_NAME = '3_embedding_dataset'
 MODELS_DIR_NAME = 'models'
 
 LORA_DIR_NAME = 'training/0_lora'
