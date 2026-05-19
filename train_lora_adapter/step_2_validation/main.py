@@ -45,8 +45,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
 
     ullama_inference_cfg = make_ullama_config(git_commit, npc_name, flow_run_id, llm_model_f_path, lora_adapter_f_path)
-    with open(os.path.join(f'{flow_run_dir_path}/', 'inference_cfg.json'), 'w', encoding="utf-8") as f:
-        f.write(json.dumps(ullama_inference_cfg, indent=2))
+    #with open(os.path.join(f'{flow_run_dir_path}/', 'inference_cfg.json'), 'w', encoding="utf-8") as f:
+    #    f.write(json.dumps(ullama_inference_cfg, indent=2))
 
     print(f'===> Lora model inference')
 

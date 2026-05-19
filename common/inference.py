@@ -32,6 +32,8 @@ def get_grammar(grammar_path):
 
 def make_ullama_config(git_commit: str, npc_name: str, flow_run_id: str, model: str, lora: str, sp: str = 'system_prompt.txt') -> dict:
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
+    inference_config = json.loads(read_file(f'{flow_run_dir_path}/inference_cfg.json'))
+    return inference_config
     system_prompt_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/{sp}'
     grammar_f_path = f'{flow_run_dir_path}/{GEN_SYS_PROMPT_DIR_NAME}/grammar.txt'
 
@@ -40,8 +42,8 @@ def make_ullama_config(git_commit: str, npc_name: str, flow_run_id: str, model: 
     llm_config['model'] = model
     llm_config['lora_adapter'] = lora
     llm_config['system_prompt'] = get_system_prompt(system_prompt_f_path)
-    grammar_string = get_grammar(grammar_f_path)
-    llm_config['grammar'] = grammar_string
+    #grammar_string = get_grammar(grammar_f_path)
+    #llm_config['grammar'] = grammar_string
 
     return llm_config
 
@@ -56,7 +58,7 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
     # region ENV vars
     requests_count = int(os.getenv('STEP_2_MAX_REQUESTS_COUNT', 10))
-    validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/validation'
+    validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/chat_validation'
     # endregion
 
     if not os.path.isdir(validation_dataset_dir_path):

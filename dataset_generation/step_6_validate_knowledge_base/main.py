@@ -14,9 +14,10 @@ def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_name: str)
     black_list = [
         'NotEnoughGoldToBuy',
         'OutOfStock',
-        #'DoNothing'
+        'DoNothing'
     ]
-    threshold = 0.7
+    threshold = 0.1
+    TOP_K = 3
     flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
 
     manifest_f_path = os.path.abspath(f'{flow_run_dir_path}/manifest.json')
@@ -43,7 +44,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_name: str)
 
     ullama = ULlamaHelper(ullama_inference_cfg)
 
-    emb_model_f_path = os.getenv('EMB_MODEL_F_PATH', 'input_data/models/retriever.gguf')
+    emb_model_f_path = os.getenv('EMB_MODEL_F_PATH', 'input_data/models/baai_bge-base-en-v1.5_f16.gguf')
+    lora_emb_model_f_path = os.getenv('LORA_EMB_MODEL_F_PATH', '')
     ENCODING = "utf-8"
 
     api = ULlamaWrapper()
@@ -51,25 +53,38 @@ def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_name: str)
     kb_f_path = f"{flow_run_dir_path}/knowledge_base.json"
     with open(kb_f_path, "r", encoding="utf-8") as f:
         kb_lst = json.loads(f.read())
-        emb_model = api.lib.ullama_loadModel(emb_model_f_path.encode(ENCODING))
+        #kb_lst = kb_lst[0::3]
+        emb_model = api.lib.ullama_load_model(emb_model_f_path.encode(ENCODING))
         kb_worker_ptr = api.lib.ullama_kb_make()
+
         kb_cfg = {
-          "model": emb_model_f_path,
-          "n_gpu_layers": 0
+            "model": emb_model_f_path,
+            "n_gpu_layers": 0,
+            "lora_adapter": lora_emb_model_f_path,
+            "query_prefix": "Represent this sentence for searching relevant passages: ",
+            #"document_prefix": "",
+
+            #"reranker_model": "D:/Projects/Python/ai_npc_lora_dataset_gen/input_data/models/bge-reranker-v2-m3-Q8_0.gguf",
+            #"reranker_n_ctx": 512,
+            #"reranker_n_gpu_layers": 10,
+            #"k_retrieve": 30,
+
+            #"hybrid_search": False,
+            #"bm25_stopwords": []
         }
+
         kb_cgf_str = json.dumps(kb_cfg).encode(ENCODING)
         kb_init_result = api.lib.ullama_kb_init(kb_worker_ptr, kb_cgf_str, emb_model)
 
-        kb_chunk_idx = ctypes.c_int()
-        kb_chunk_score = ctypes.c_float()
+        use_llm = False
 
         if kb_init_result:
             for kb_record in kb_lst:
                 request = kb_record["request"]
-                api.lib.ullama_kb_addChunk(kb_worker_ptr, request.encode(ENCODING))
+                api.lib.ullama_kb_add_chunk(kb_worker_ptr, request.encode(ENCODING))
             api.lib.ullama_kb_update(kb_worker_ptr)
 
-            validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/{dataset_name}_validation/*.jsonl'
+            validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/{dataset_name}_validation_custom/*.jsonl'
 
             total_requests = 0
 
@@ -95,39 +110,52 @@ def process(git_commit: str, npc_name: str, flow_run_id: str, dataset_name: str)
                     request = pair[0]
                     valid_response_dict = pair[1]
                     target_action = valid_response_dict['action']
-
-                    llm_found_action, think_block = ullama.chat(
-                        model=ullama_inference_cfg.get('model'),
-                        system_prompt=ullama_inference_cfg.get('system_prompt', ''),
-                        user_prompt=request
-                    )
+                    if use_llm:
+                        llm_found_action, think_block = ullama.chat(
+                            model=ullama_inference_cfg.get('model'),
+                            system_prompt=ullama_inference_cfg.get('system_prompt', ''),
+                            user_prompt=request
+                        )
 
                     request_obj = json.loads(request)
-                    request_obj = {
-                        "request_of_user": request_obj['request']
-                    }
+                    if use_llm:
+                        if valid_response_dict != llm_found_action:
+                            llm_fails[file_name] += 1
+                            print(f'   LLM Error: {request_obj["request"]}')
+                            print(f'       valid: {valid_response_dict["action"]} != found: {llm_found_action["action"]}')
 
-                    if valid_response_dict != llm_found_action:
-                        llm_fails[file_name] += 1
-                        print(f'   LLM Error: {request_obj["request_of_user"]}')
-                        print(f'       valid: {valid_response_dict["action"]} != found: {llm_found_action["action"]}')
-
-
-                    request = json.dumps(request_obj).encode(ENCODING)
-
-                    chunk_found = api.lib.ullama_kb_search(
-                        kb_worker_ptr,
-                        request,
-                        ctypes.byref(kb_chunk_idx),
-                        ctypes.byref(kb_chunk_score)
+                    #request_obj['request'] = "Represent this sentence for searching relevant passages: " + request_obj['request']
+                    request = json.dumps(request_obj)
+                    results = api.search_top_n(
+                        kb_handle=kb_worker_ptr,
+                        query=request,
+                        top_k=TOP_K
                     )
-                    if chunk_found and kb_chunk_score.value > threshold:
-                        chunk = kb_lst[kb_chunk_idx.value]
-                        found_action = chunk["action"]
-                        if found_action != target_action:
+                    chunk_found = len(results)
+                    if chunk_found:
+                        found = False
+                        found_actions = []
+                        for result in results:
+                            index = result[0]
+                            score = result[1]
+                            if score > threshold:
+                                chunk = kb_lst[index]
+                                found_action = chunk["action"]
+                                if found_action not in found_actions:
+                                    found_actions.append(found_action)
+                                if found_action == target_action:
+                                    found = True
+                                    break
+                                continue
+                                if found_action != target_action:
+                                    emb_fails[file_name] += 1
+                                    print(f'   EMB Error: {request_obj["request"]}')
+                                    print(f'       valid: {target_action} != found: {found_action}')
+
+                        if not found:
                             emb_fails[file_name] += 1
-                            print(f'   EMB Error: {request_obj["request_of_user"]}')
-                            print(f'       valid: {target_action} != found: {found_action}')
+                            print(f'   EMB Error: {request_obj["request"]}')
+                            print(f'       valid: {target_action} != found: {found_actions}')
         else:
             print(f'Error on init knowledge base')
         print()

@@ -119,40 +119,38 @@ class ULlamaHelper:
         cfg = self._build_config(model_path, system_prompt)
         cfg_bytes = json.dumps(cfg).encode("utf-8")
         self._api = ULlamaWrapper()
-        self._model = self._api.lib.ullama_loadModel(cfg_bytes)
-        self._worker = self._api.lib.ullama_worker_make()
-        print(f'[INFO] loaded model "{self._model}"')
-        print(f'[INFO] loaded worker "{self._worker}"')
-        if not self._api.lib.ullama_worker_init(self._worker, cfg_bytes, self._model):
+        self._model = self._api.lib.ullama_load_model(cfg_bytes)
+        self._worker = self._api.lib.ullama_make()
+        if not self._api.lib.ullama_init(self._worker, cfg_bytes, self._model):
             self._teardown()
             raise RuntimeError("ullama_worker_init failed — check model / config paths")
 
-        self._api.lib.ullama_worker_run(self._worker)
+        self._api.lib.ullama_run(self._worker)
         self._loaded_model_path = cfg["model"]
         self._loaded_system_prompt = system_prompt
 
     def _reinit_worker(self, system_prompt: str) -> None:
         """Re-initialise only the worker (cheaper than reloading the model)."""
         if self._worker is not None:
-            self._api.lib.ullama_worker_dispose(self._worker)
+            self._api.lib.ullama_dispose(self._worker)
 
         cfg = self._build_config(self._loaded_model_path, system_prompt)
         cfg_bytes = json.dumps(cfg).encode("utf-8")
 
-        self._worker = self._api.lib.ullama_worker_make()
-        if not self._api.lib.ullama_worker_init(self._worker, cfg_bytes, self._model):
+        self._worker = self._api.lib.ullama_make()
+        if not self._api.lib.ullama_init(self._worker, cfg_bytes, self._model):
             self._worker = None
             raise RuntimeError("ullama_worker_init failed during reinit")
 
-        self._api.lib.ullama_worker_run(self._worker)
+        self._api.lib.ullama_run(self._worker)
         self._loaded_system_prompt = system_prompt
 
     def _ask(self, prompt: str) -> str:
         """Send a single prompt and collect tokens until the worker is done."""
-        self._api.lib.ullama_worker_ask(self._worker, prompt.encode("utf-8"))
+        self._api.lib.ullama_ask(self._worker, prompt.encode("utf-8"))
         response = ""
-        while self._api.lib.ullama_worker_isSpeaking(self._worker):
-            if self._api.lib.ullama_worker_getToken(
+        while self._api.lib.ullama_is_speaking(self._worker):
+            if self._api.lib.ullama_get_response(
                 self._worker, self._token_buf, self.TOKEN_BUF_SIZE
             ):
                 response += self._token_buf.value.decode("utf-8")
@@ -183,10 +181,10 @@ class ULlamaHelper:
         if self._api is None:
             return
         if self._worker is not None:
-            self._api.lib.ullama_worker_dispose(self._worker)
+            self._api.lib.ullama_dispose(self._worker)
             self._worker = None
         if self._model is not None:
-            self._api.lib.ullama_freeModel(self._model)
+            self._api.lib.ullama_free_model(self._model)
             self._model = None
         self._api = None
 

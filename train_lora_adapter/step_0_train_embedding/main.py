@@ -60,7 +60,7 @@ def process(
         npc_name: str,
         flow_run_id: str,
         base_model: str = "BAAI/bge-base-en-v1.5",
-        num_train_epoch: int = 2,
+        num_train_epoch: int = 16,
         lora_rank: int = 16,
         lora_alpha: int = 32,
         batch_size: int = 64,
