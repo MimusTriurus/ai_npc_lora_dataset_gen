@@ -22,7 +22,7 @@ def process(model_dir_path: str):
     ENCODING = "utf-8"
     api = ULlamaWrapper()
     # ----- Build knowledge base of action signatures -----------------------
-    kb_f_path = f"{manifest.flow_dir_path()}/knowledge_base.json"
+    kb_f_path = f"{model_dir_path}/knowledge_base.json"
     with open(kb_f_path, "r", encoding="utf-8") as f:
         kb_lst = json.loads(f.read())
 
@@ -76,7 +76,7 @@ def process(model_dir_path: str):
             target_action = valid_response_dict['action']
 
             request_obj = json.loads(request)
-            #request_obj['request'] = QUERY_PREFIX + request_obj['request']
+            request_obj['request'] = manifest.emb_request_prefix() + request_obj['request']
 
             request = json.dumps(request_obj)
 
@@ -132,9 +132,9 @@ def process(model_dir_path: str):
 
 
 if __name__ == "__main__":
-    hash = 'f71e60c'
-    hash = '3d1c75f'
+    hash = os.getenv('TRAINING_SESSION_HASH')
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
     process(lora_path)
+
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
     process(lora_path)

@@ -44,6 +44,7 @@ def make_inference_config(model_dir_path: str):
 @task(name="step_1_convert_to_gguf")
 def process(
     lora_dir_path: str,
+    quantization: bool = False,
 ):
     LORA_PATH = f"{lora_dir_path}"
     LORA_ADAPTER_PATH = f"{LORA_PATH}/final_adapter/"
@@ -94,25 +95,24 @@ def process(
     else:
         print(f"===> Error: can't find converter: {converter_path}")
 
-    print(f"===> Quantization q4_k_m for. {OUT_BASE_MODEL_FILE}")
-
-    quatizator_path = str(LLAMA_BIN_DIR / "llama-quantize.exe")
-
-    BASE_MODEL_Q4 = Path(f'{OUT_BASE_MODEL_DIR}/{MODEL_SLUG}_q4_k_m.gguf')
-    if not os.path.isfile(BASE_MODEL_Q4):
-        if os.path.isfile(quatizator_path):
-            subprocess.run([
-                quatizator_path,
-                OUT_BASE_MODEL_FILE,
-                str(BASE_MODEL_Q4.resolve()),
-                'q4_k_m'
-            ], check=True)
-        else:
-            print(f"===> Error: can't find quantizator: {quatizator_path}")
+    if quantization:
+        print(f"===> Quantization q4_k_m for. {OUT_BASE_MODEL_FILE}")
+        quatizator_path = str(LLAMA_BIN_DIR / "llama-quantize.exe")
+        BASE_MODEL_Q4 = Path(f'{OUT_BASE_MODEL_DIR}/{MODEL_SLUG}_q4_k_m.gguf')
+        if not os.path.isfile(BASE_MODEL_Q4):
+            if os.path.isfile(quatizator_path):
+                subprocess.run([
+                    quatizator_path,
+                    OUT_BASE_MODEL_FILE,
+                    str(BASE_MODEL_Q4.resolve()),
+                    'q4_k_m'
+                ], check=True)
+            else:
+                print(f"===> Error: can't find quantizator: {quatizator_path}")
 
     manifest['gguf'] = {
         'lora_f_path': str(OUT_LORA_ADAPTER_FILE.as_posix()),
-        'model_f_path': str(BASE_MODEL_Q4.as_posix())
+        'model_f_path': str(OUT_BASE_MODEL_FILE.as_posix())
     }
     update_manifest(manifest_f_path, manifest)
 
@@ -120,8 +120,7 @@ def process(
     print('\n Ready!')
 
 if __name__ == '__main__':
-    hash = 'f71e60c'
-    hash = '3d1c75f'
+    hash = os.getenv('TRAINING_SESSION_HASH')
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
     process(lora_path)
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'

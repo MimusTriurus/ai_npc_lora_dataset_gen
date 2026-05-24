@@ -145,8 +145,7 @@ def process(
 
 
 if __name__ == "__main__":
-    hash = 'f71e60c'
-    hash = '3d1c75f'
+    hash = os.getenv('TRAINING_SESSION_HASH')
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
     process(lora_path)
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'

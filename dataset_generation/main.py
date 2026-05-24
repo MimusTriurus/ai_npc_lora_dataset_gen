@@ -10,7 +10,7 @@ import dataset_generation.step_2_generate_sys_prompt.main as step_2_generate_sys
 import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_npc_answers
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
 import dataset_generation.step_4_make_embedding_dataset.main as step_4_make_embedding_dataset
-import dataset_generation.step_5_make_knowledge_base.main as step_5_make_knowledge_base
+import train_lora_adapter.step_1_make_knowledge_base.main as step_5_make_knowledge_base
 
 
 @flow(name="lora-dataset-generation", log_prints=True)

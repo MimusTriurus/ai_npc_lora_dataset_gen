@@ -149,7 +149,17 @@ def process(
         batch_size: int = 64,
         loss_name: str = LOSS_MNR
 ):
-    hyper_params_hash = make_hash(num_train_epoch, lora_rank, lora_alpha, batch_size, loss_name)[:7]
+    # Optional query-side prefix (BGE retrieval convention). Empty disables it.
+    query_prefix = os.getenv('STEP_0E_QUERY_PREFIX', BGE_QUERY_PREFIX_DEFAULT)
+
+    hyper_params_hash = make_hash(
+        num_train_epoch,
+        lora_rank,
+        lora_alpha,
+        batch_size,
+        loss_name,
+        query_prefix
+    )[:7]
     output_dir = (
         f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/'
         f'{LORA_EMBEDDING_DIR_NAME}/{base_model}/{dataset_name}/{hyper_params_hash}'
@@ -187,9 +197,6 @@ def process(
         raise ValueError(
             f"Invalid STEP_0E_LOSS={loss_name!r}. Allowed: {LOSS_MNR}, {LOSS_COSENT}"
         )
-
-    # Optional query-side prefix (BGE retrieval convention). Empty disables it.
-    query_prefix = os.getenv('STEP_0E_QUERY_PREFIX', BGE_QUERY_PREFIX_DEFAULT)
 
     # Score thresholds — must match what step_4_make_embedding_dataset wrote.
     score_high = float(os.getenv('STEP_0E_SCORE_HIGH', 1.0))
@@ -377,10 +384,10 @@ if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    LOSS_NAME = os.getenv('STEP_0E_LOSS', LOSS_MNR).lower()
+    LOSS_NAME = LOSS_MNR
 
     NUM_TRAIN_EPOCH = int(os.getenv('STEP_0_NUM_TRAIN_EPOCH', 1))
-
+    '''
     process(
         git_commit=COMMIT,
         npc_name=NPC_NAME,
@@ -398,7 +405,7 @@ if __name__ == "__main__":
         loss_name=LOSS_NAME,
         num_train_epoch=NUM_TRAIN_EPOCH,
     )
-
+    '''
     LOSS_NAME = LOSS_COSENT
 
     process(

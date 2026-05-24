@@ -41,3 +41,6 @@ class Manifest:
     def update(self):
         with open(self.f_path, "w", encoding="utf-8") as f:
             f.write(json.dumps(self.obj, indent=4))
+
+    def emb_request_prefix(self):
+        return self.obj["training"]['query_prefix']
