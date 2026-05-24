@@ -12,7 +12,7 @@ from common.constants import DATA_DIR_NAME
 from common.data_classes import Action, Question
 import os
 import glob
-
+import hashlib
 
 def camel_to_snake(name: str) -> str:
     out = []
@@ -316,7 +316,7 @@ def save_text_file(folder_path: str, filename: str, content: str):
 
     file_path = os.path.join(folder_path, filename)
 
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding='utf-8') as f:
         f.write(content)
 
     return file_path
@@ -365,6 +365,25 @@ def replace_unicode(requests_str: str) -> str:
     result = result.replace('--', '-')
     return result
 
+def format_action_signature(action_name: str, params: dict) -> str:
+    """Format an action+params as a canonical retrievable string.
+
+    Used as both the embedding LoRA training target (sentence2 in
+    action_signature mode) and as the knowledge-base chunk text for
+    request->action retrieval. Both must produce identical strings
+    so the inference distribution matches training.
+
+    Examples:
+        ("SellItem", {"item": "shotgun"}) -> "SellItem | item: shotgun"
+        ("DoNothing", {}) -> "DoNothing"
+        ("Trade", {"item": "potion", "qty": 3}) -> "Trade | item: potion | qty: 3"
+    """
+    if not params:
+        return action_name
+    parts = [f'{k}: {v}' for k, v in sorted(params.items())]
+    return f'{action_name} | ' + ' | '.join(parts)
+
+
 def update_manifest(manifest_file_path: str, manifest: dict):
     if os.path.exists(manifest_file_path):
         with open(manifest_file_path, "r", encoding="utf-8") as f:
@@ -404,3 +423,7 @@ def read_dataset_file(path: str) -> List[Tuple[str, dict]]:
             pair = (usr_request, ai_response)
             dataset_pairs.append(pair)
     return dataset_pairs
+
+def make_hash(*args):
+    s = "|".join(map(str, args))
+    return hashlib.md5(s.encode()).hexdigest()

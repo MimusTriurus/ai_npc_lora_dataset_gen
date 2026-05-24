@@ -6,9 +6,20 @@ from jinja2 import Environment
 from prefect import task
 from ullama_python.ullama import emotions
 
-from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, ACTION_FOR_IRRELEVANT_REQUESTS
-from common.helpers import is_env_var_true, save_text_file, extract_nsloctext_value, parse_action_signature, \
+from common.constants import (
+    DATA_DIR_NAME,
+    GEN_SYS_PROMPT_DIR_NAME,
+    ACTION_FOR_IRRELEVANT_REQUESTS,
+    TOOL_CALLING_LLM_PREFIX,
+    CHAT_LLM_PREFIX
+)
+from common.helpers import (
+    is_env_var_true,
+    save_text_file,
+    extract_nsloctext_value,
+    parse_action_signature,
     parse_actions_from_file
+)
 
 from common.ollama_helper import OllamaHelper
 
@@ -27,7 +38,7 @@ def build_actions_rules(action_data):
         raw_name = action["ActionTemplate"]
         action_name, arg_names = parse_action_signature(raw_name)
         actions_params[action_name] = arg_names
-        action_desc[action_name] = action["Description"] if need_2_gen_action_desc else ''
+        action_desc[action_name] = action.get("Description", '') if need_2_gen_action_desc else ''
         for key, values in action["Parameters"].items():
             if key in arg_names:
                 param_groups[key].update(values)
@@ -142,7 +153,8 @@ dict ::= "{" ws "}" | "{" ws kv ("," ws kv)* ws "}"
 
 @task(name="step_2_generate_sys_prompt_and_actions_description")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
-    NPC_DESC_F_PATH = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/description.json'
+    flow_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
+    NPC_DESC_F_PATH = f'{flow_dir_path}/description.json'
     INFERENCE_SP_F_PATH = os.getenv("STEP_2_INFERENCE_SP_F_PATH")
     TOOL_CALLING_SP_F_PATH = os.getenv("STEP_2_TOOL_CALLING_SP_F_PATH", "dataset_generation/step_2_generate_sys_prompt/tool_calling_system_prompt.j2")
 
@@ -172,45 +184,80 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         actions_desc: Dict[str, str] = dict()
         for action in npcs_desc["ActionData"]:
             action_name, action_args = parse_action_signature(action["ActionTemplate"])
-            action_desc = action["Description"]
+            action_desc = action.get("Description", '')
             actions_desc[action_name] = action_desc
 
         irrelevant_action_name, irrelevant_action_desc = make_irrelevant_action_description()
         actions_desc[irrelevant_action_name] = irrelevant_action_desc
-        actions_desc_f_path = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}"
+        output_folder = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}"
 
         # ACTIONS DESCRIPTION
         save_text_file(
-            folder_path=actions_desc_f_path,
+            folder_path=output_folder,
             filename="actions_desc.json",
             content=json.dumps(actions_desc, indent=2)
         )
         # SYSTEM_PROMPT
         save_text_file(
-            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
-            filename="system_prompt.txt",
+            folder_path=output_folder,
+            filename=f"{CHAT_LLM_PREFIX}_sp.txt",
             content=sp
         )
 
         # TOOL CALLING SYSTEM_PROMPT
         save_text_file(
-            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
-            filename="tool_calling_system_prompt.txt",
+            folder_path=output_folder,
+            filename=f"{TOOL_CALLING_LLM_PREFIX}_sp.txt",
             content=tc_sp
         )
 
         # GRAMMAR
-        actions = parse_actions_from_file(f'{actions_desc_f_path}/actions_desc.json')
+        actions = parse_actions_from_file(f'{output_folder}/actions_desc.json')
         grammar_str = build_grammar(
             emotions=emotions,
             actions=actions,
             use_thinking_mode=False
         )
         save_text_file(
-            folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}",
+            folder_path=output_folder,
             filename="grammar.txt",
             content=grammar_str
         )
+
+        chat_inf_cfg_f_path = f'{flow_dir_path}/{CHAT_LLM_PREFIX}_inference_cfg.json'
+        template_chat_inf_cfg_f_path = f'resources/template_{CHAT_LLM_PREFIX}_inference_cfg.json'
+        try:
+            with open(template_chat_inf_cfg_f_path, 'r') as f:
+                template = json.load(f)
+                template['grammar'] = grammar_str
+                template['system_prompt'] = sp
+                with open(chat_inf_cfg_f_path, 'w') as f:
+                    json.dump(template, f, indent=4)
+        except FileNotFoundError as e:
+            print(f'{e}')
+
+        tc_inf_cfg_f_path = f'{flow_dir_path}/{TOOL_CALLING_LLM_PREFIX}_inference_cfg.json'
+        template_tc_inf_cfg_f_path = f'resources/template_{TOOL_CALLING_LLM_PREFIX}_inference_cfg.json'
+        try:
+            with open(template_tc_inf_cfg_f_path, 'r') as f:
+                template = json.load(f)
+                template['system_prompt'] = tc_sp
+                with open(tc_inf_cfg_f_path, 'w') as f:
+                    json.dump(template, f, indent=4)
+        except FileNotFoundError as e:
+            print(f'{e}')
+
+        template_emb_inf_cfg_f_path = f'resources/template_embedding_inference_cfg.json'
+        emb_inf_cfg_f_path = f'{flow_dir_path}/embedding_inference_cfg.json'
+        try:
+            with open(template_emb_inf_cfg_f_path, 'r') as f:
+                template = json.load(f)
+                with open(emb_inf_cfg_f_path, 'w') as f:
+                    json.dump(template, f, indent=4)
+        except FileNotFoundError as e:
+            print(f'{e}')
+
+
 
 if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")

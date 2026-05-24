@@ -1,3 +1,4 @@
+import json
 import warnings
 import torch
 import os
@@ -11,7 +12,7 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
 import logging
-from common.helpers import update_manifest
+from common.helpers import update_manifest, make_hash
 from prefect import task
 from common.constants import *
 
@@ -64,19 +65,27 @@ def process(
         batch_size: int = 2,
 ):
     model_path = f'models/{base_model}'
+    learning_rate = float(os.getenv('STEP_0_LEARNING_RATE', 5e-5))
+    gradient_accumulation = int(os.getenv('STEP_0_GRADIENT_ACCUMULATION', 4))
+
+    eval_strategy = os.getenv('STEP_0_EVAL_STRATEGY', 'no')
+    eval_steps = int(os.getenv('STEP_0_EVAL_STEPS', 100))
+
+    hyper_params_hash = make_hash(
+        num_train_epoch,
+        lora_rank,
+        lora_alpha,
+        batch_size,
+        learning_rate,
+        gradient_accumulation
+    )[:7]
 
     if not os.path.exists(model_path):
         logger.info(f"Model not found locally, downloading from HuggingFace...")
         from huggingface_hub import snapshot_download
         snapshot_download(repo_id=f"Qwen/{base_model}", local_dir=model_path)
 
-    dataset_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}'
-
-    learning_rate = float(os.getenv('STEP_0_LEARNING_RATE', 5e-5))
-    gradient_accumulation = int(os.getenv('STEP_0_GRADIENT_ACCUMULATION', 4))
-
-    eval_strategy = os.getenv('STEP_0_EVAL_STRATEGY', 'no')
-    eval_steps = int(os.getenv('STEP_0_EVAL_STEPS', 100))
+    dataset_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/{dataset_name}'
 
     logger.info("=" * 50)
     logger.info(f"TRAINING CONFIGURATION FOR: {dataset_name}")
@@ -93,13 +102,16 @@ def process(
     dataset = load_dataset(
         "json",
         data_files={
-            "train": f'{dataset_dir}/{dataset_name}_training/*.jsonl',
-            "validation": f'{dataset_dir}/{dataset_name}_validation/*.jsonl',
+            "train": f'{dataset_dir}/training/*.jsonl',
+            "validation": f'{dataset_dir}/validation/*.jsonl',
         },
     )
 
     training_dataset = dataset["train"]
     validation_dataset = dataset["validation"]
+    # todo: remove after tests
+    # training_dataset = dataset["train"].shuffle(seed=42).select(range(500))
+    # validation_dataset = dataset["validation"].shuffle(seed=42).select(range(100))
 
     logger.info("Loading tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -165,8 +177,13 @@ def process(
         early_stopping_threshold=0.001
     )
 
+    output_dir = (
+        f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/'
+        f'{LORA_DIR_NAME}/{base_model}/{dataset_name}/{hyper_params_hash}'
+    )
+
     sft_config = SFTConfig(
-        output_dir=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}",
+        output_dir=output_dir,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,
@@ -213,7 +230,7 @@ def process(
     logger.info("Starting training...")
     trainer.train()
 
-    save_dir = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}/final_adapter"
+    save_dir = f'{output_dir}/final_adapter'
     logger.info(f"Saving model to: {save_dir}")
     model.save_pretrained(save_dir, safe_serialization=False)
     tokenizer.save_pretrained(save_dir)
@@ -230,11 +247,14 @@ def process(
 
     logger.info("\nTraining completed successfully!")
 
-    manifest_f_name = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/manifest.json'
+    manifest_f_name = (
+        f'{dataset_dir}/manifest.json'
+    )
 
     manifest = {
-        f'{dataset_name}_lora_training': {
+        f'training': {
             'model_name': base_model,
+            'model_path': model_path,
             'num_train_epoch': num_train_epoch,
             'learning_rate': learning_rate,
             'batch_size': batch_size,
@@ -243,8 +263,11 @@ def process(
             'lora_alpha': lora_alpha,
         }
     }
-    update_manifest(manifest_f_name, manifest)
+    dataset_manifest = json.loads(open(manifest_f_name, 'r').read())
+    manifest = manifest | dataset_manifest
+    update_manifest(f'{output_dir}/manifest.json', manifest)
 
+    return output_dir
 
 if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")

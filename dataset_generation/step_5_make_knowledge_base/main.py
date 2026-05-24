@@ -4,8 +4,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from common.constants import DATA_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME
-from common.helpers import get_npc_data, parse_action_signature, save_text_file
+from common.constants import DATA_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME, SENTENCE2_MODE_USER_REQUEST
+from common.helpers import (
+    format_action_signature,
+    get_npc_data,
+    parse_action_signature,
+    save_text_file,
+)
+from common.manifest import Manifest
 
 
 def make_action_key(action: dict) -> str:
@@ -67,17 +73,18 @@ def save_groups(groups: dict[str, list[dict]], output_dir: str) -> None:
     print(f"\nСводка сохранена: {summary_path}")
 
 
-def process(git_commit: str, npc_name: str, flow_run_id: str):
+def process(
+    lora_dir_path: str,
+):
+    manifest_f_path = os.path.abspath(f'{lora_dir_path}/manifest.json')
+    manifest = Manifest(manifest_f_path)
+
     # temporary solution
-    black_list = [
-        'NotEnoughGoldToBuy',
-        'OutOfStock',
-        'DoNothing',
-    ]
+    black_list = os.getenv('STEP_4E_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
 
-    MAX_RECORDS_PER_ACTION = int(os.getenv("STEP_5_MAX_RECORDS_PER_ACTION", 2))
-
-    npc_data = get_npc_data(git_commit, npc_name, flow_run_id)
+    # NOTE: STEP_5_MAX_RECORDS_PER_ACTION is obsolete since the KB is now
+    # deduplicated by (action_name, parameters). One chunk per variant.
+    npc_data = get_npc_data(manifest.unreal_commit(), manifest.npc_name(), manifest.flow_run_id())
 
     actions_template_data = npc_data['ActionData']
 
@@ -92,31 +99,55 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             continue
         actions_set.add(action_name)
 
+    # Knowledge base is a deduplicated list of unique (action, parameters)
+    # variants. Each chunk's text is the canonical action signature — same
+    # format the embedding LoRA was trained against (sentence2 in
+    # action_signature mode). This keeps retrieval consistent with training:
+    # user request -> nearest action signature.
     knowledge_base = list()
+    seen_keys: set[str] = set()
 
     for action_name in actions_set:
-        dialogs_per_action_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_NPC_ANSWER_DIR_NAME}/{action_name}.jsonl'
+        dialogs_per_action_dir_path = f'{DATA_DIR_NAME}/{manifest.unreal_commit()}/{manifest.npc_name()}/{manifest.flow_run_id()}/{GEN_NPC_ANSWER_DIR_NAME}/{action_name}.jsonl'
 
         groups = group_by_action(dialogs_per_action_dir_path)
         for group_key, data_lst in groups.items():
-            size = min(len(data_lst), MAX_RECORDS_PER_ACTION)
-            for data_dict in data_lst[:size]:
-                record = {
-                    'request': data_dict['usr_request']['request'],
-                    'action': data_dict['npc_response']['action'],
-                }
-                knowledge_base.append(record)
+            if group_key in seen_keys or not data_lst:
+                continue
+
+            first = data_lst[0]
+
+            npc_response = first['npc_response']
+            usr_request = first['usr_request']['request']
+            action_obj = npc_response['action']
+
+            if manifest.emb_dataset_mode() == SENTENCE2_MODE_USER_REQUEST:
+                signature = usr_request
+            else:
+                signature = format_action_signature(
+                    action_obj.get('name', action_name),
+                    action_obj.get('parameters', {}) or {},
+                )
+
+            record = {
+                'signature': signature,
+                'action': action_obj,
+            }
+            knowledge_base.append(record)
+            seen_keys.add(group_key)
 
     knowledge_base_str = json.dumps(knowledge_base, ensure_ascii=False, indent=2)
     save_text_file(
-        folder_path=f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}",
+        folder_path=f"{lora_dir_path}",
         filename=f"knowledge_base.json",
         content=knowledge_base_str
     )
 
 
 if __name__ == "__main__":
-    COMMIT = os.getenv("COMMIT")
-    NPC_NAME = os.getenv("NPC_NAME")
-    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    exit(process(git_commit=COMMIT, npc_name=NPC_NAME, flow_run_id=FLOW_RUN_ID))
+    hash = 'f71e60c'
+    hash = '3d1c75f'
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
+    process(lora_path)
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
+    process(lora_path)

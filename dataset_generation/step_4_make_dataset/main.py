@@ -7,7 +7,8 @@ from typing import Dict
 import subprocess
 from prefect import task
 
-from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME, DATASET_DIR_NAME
+from common.constants import DATA_DIR_NAME, GEN_SYS_PROMPT_DIR_NAME, GEN_NPC_ANSWER_DIR_NAME, DATASET_DIR_NAME, \
+    CHAT_LLM_PREFIX, TOOL_CALLING_LLM_PREFIX
 from common.helpers import (
     list_files,
     load_jsonl_to_dict,
@@ -44,13 +45,13 @@ def create_chat_format_record(sp: str, user_request: dict, npc_response: dict) -
         ]
     }
 
-#@task(name="step_4_make_dataset")
+@task(name="step_4_make_dataset")
 def process(git_commit: str, npc_name: str, flow_run_id: str):
     inference_sp = ''
     tool_calling_sp = ''
 
-    sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/system_prompt.txt'
-    tc_sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/tool_calling_system_prompt.txt'
+    sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/{CHAT_LLM_PREFIX}_sp.txt'
+    tc_sp_f_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GEN_SYS_PROMPT_DIR_NAME}/{TOOL_CALLING_LLM_PREFIX}_sp.txt'
 
     with open(sp_f_path, 'r', encoding='utf-8') as f:
         inference_sp += f.read()
@@ -139,9 +140,9 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
 
     # Phase 3: save training per source file, validation per action name
     training_dataset_size_per_action: Dict[str, int] = {}
-
+    dataset_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}'
     for file_name, records in training_by_file.items():
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/chat_training'
+        target_dir = f'{dataset_dir}/{CHAT_LLM_PREFIX}/training'
         save_dict_records_to_jsonl(
             records=records,
             output_file=f'{file_name}.jsonl',
@@ -150,7 +151,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         )
         training_dataset_size_per_action[file_name] = len(records)
 
-    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/chat_validation'
+    target_dir = f'{dataset_dir}/{CHAT_LLM_PREFIX}/validation'
     for action_name, records in validation_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
@@ -159,9 +160,8 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             folder_path=target_dir,
             append=True
         )
-
     for file_name, records in training_chat_by_file.items():
-        target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/tool_calling_training'
+        target_dir = f'{dataset_dir}/{TOOL_CALLING_LLM_PREFIX}/training'
         save_dict_records_to_jsonl(
             records=records,
             output_file=f'{file_name}.jsonl',
@@ -169,7 +169,7 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
             append=True
         )
 
-    target_dir = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{DATASET_DIR_NAME}/tool_calling_validation'
+    target_dir = f'{dataset_dir}/{TOOL_CALLING_LLM_PREFIX}/validation'
     for action_name, records in validation_chat_by_action.items():
         random.shuffle(records)
         save_dict_records_to_jsonl(
@@ -182,12 +182,18 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
     pipeline_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
 
     manifest = {
-        'unreal_commit': git_commit,
-        'npc_name': npc_name,
-        'pipeline_commit': pipeline_commit[:7],
-        'timestamp': datetime.now().isoformat(),
-        'flow_run_id': flow_run_id,
+        'initial_args': {
+            'unreal_commit': git_commit,
+            'npc_name': npc_name,
+            'pipeline_commit': pipeline_commit[:7],
+            'timestamp': datetime.now().isoformat(),
+            'flow_run_id': flow_run_id,
+        }
+    }
+
+    chat_dataset_manifest = {
         'dataset': {
+            'dir_path': f'{dataset_dir}/{CHAT_LLM_PREFIX}',
             'training': {
                 'actions': training_dataset_size_per_action,
                 'total': sum(training_dataset_size_per_action.values()),
@@ -199,9 +205,29 @@ def process(git_commit: str, npc_name: str, flow_run_id: str):
         }
     }
 
-    manifest_f_name = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/manifest.json'
+    chat_dataset_manifest = manifest | chat_dataset_manifest
+    chat_dataset_manifest['type'] = CHAT_LLM_PREFIX
+    manifest_f_name = f'{dataset_dir}/{CHAT_LLM_PREFIX}/manifest.json'
+    update_manifest(manifest_f_name, chat_dataset_manifest)
 
-    update_manifest(manifest_f_name, manifest)
+    # tool calling
+    tool_calling_dataset_manifest = {
+        'dataset': {
+            'dir_path': f'{dataset_dir}/{TOOL_CALLING_LLM_PREFIX}',
+            'training': {
+                'actions': training_dataset_size_per_action,
+                'total': sum(training_dataset_size_per_action.values()),
+            },
+            'validation': {
+                'actions': validation_dataset_size_per_action,
+                'total': sum(validation_dataset_size_per_action.values()),
+            }
+        }
+    }
+    tool_calling_dataset_manifest = manifest | tool_calling_dataset_manifest
+    tool_calling_dataset_manifest['type'] = TOOL_CALLING_LLM_PREFIX
+    manifest_f_name = f'{dataset_dir}/{TOOL_CALLING_LLM_PREFIX}/manifest.json'
+    update_manifest(manifest_f_name, tool_calling_dataset_manifest)
 
 if __name__ == '__main__':
     COMMIT = os.getenv("COMMIT")

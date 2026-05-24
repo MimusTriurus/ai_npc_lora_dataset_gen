@@ -1,0 +1,13 @@
+{
+  "model": "",
+  "n_gpu_layers": 0,
+  "lora_adapter": "",
+  "query_prefix": "",
+  "document_prefix": "",
+  "reranker_model": "",
+  "reranker_n_ctx": 512,
+  "reranker_n_gpu_layers": 99,
+  "k_retrieve": 30,
+  "hybrid_search": false,
+  "bm25_stopwords": []
+}

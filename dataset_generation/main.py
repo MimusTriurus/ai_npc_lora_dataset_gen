@@ -11,7 +11,7 @@ import dataset_generation.step_3_generate_npc_answers.main as step_3_generate_np
 import dataset_generation.step_4_make_dataset.main as step_4_make_dataset
 import dataset_generation.step_4_make_embedding_dataset.main as step_4_make_embedding_dataset
 import dataset_generation.step_5_make_knowledge_base.main as step_5_make_knowledge_base
-import dataset_generation.step_6_validate_knowledge_base.main as step_6_validate_knowledge_base
+
 
 @flow(name="lora-dataset-generation", log_prints=True)
 async def npc_lora_dataset_gen_flow(

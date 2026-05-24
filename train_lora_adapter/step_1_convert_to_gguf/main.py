@@ -1,3 +1,4 @@
+import json
 import os
 import os.path
 import subprocess
@@ -7,14 +8,10 @@ from typing import Optional
 from common.constants import *
 from prefect import task
 
+from common.helpers import update_manifest
 
+# [OBSOLETE]
 def _find_peft_adapter_dir(root: str) -> Optional[str]:
-    """Locate the directory containing adapter_config.json under `root`.
-
-    SentenceTransformer's save_pretrained may place PEFT adapter files either
-    at the root of the save dir or in a transformer submodule subdir
-    (e.g. `0_Transformer/`). This helper looks in both places.
-    """
     root_path = Path(root)
     if (root_path / "adapter_config.json").is_file():
         return str(root_path)
@@ -23,25 +20,45 @@ def _find_peft_adapter_dir(root: str) -> Optional[str]:
             return str(child)
     return None
 
+def make_inference_config(model_dir_path: str):
+    manifest_f_path = f'{model_dir_path}/manifest.json'
+    manifest = json.loads(open(manifest_f_path, 'r').read())
+
+    initial_args = manifest['initial_args']
+    unreal_commit = initial_args['unreal_commit']
+    npc_name = initial_args['npc_name']
+    flow_run_id = initial_args['flow_run_id']
+    root_dir =f'{DATA_DIR_NAME}/{unreal_commit}/{npc_name}/{flow_run_id}'
+    model_type = manifest['type']
+    inference_config_f_name = f'{root_dir}/{model_type}_inference_cfg.json'
+    try:
+        with open(inference_config_f_name, 'r') as f:
+            inference_cfg = json.load(f)
+            inference_cfg['model'] = f"{manifest['gguf']['model_f_path']}"
+            inference_cfg['lora_adapter'] = f"{manifest['gguf']['lora_f_path']}"
+        with open(f'{model_dir_path}/inference_cfg.json', 'w') as f:
+            json.dump(inference_cfg, f, indent=4)
+    except FileNotFoundError as e:
+        print(f'Convert to gguf. make_inference_config. {e}')
 
 @task(name="step_1_convert_to_gguf")
 def process(
-        git_commit: str,
-        npc_name: str,
-        flow_run_id: str,
-        base_model: str,
-        dataset_name: str,
-        embedding_base_model: str = "BAAI/bge-base-en-v1.5",
+    lora_dir_path: str,
 ):
-    LORA_PATH = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{LORA_DIR_NAME}_{dataset_name}"
+    LORA_PATH = f"{lora_dir_path}"
     LORA_ADAPTER_PATH = f"{LORA_PATH}/final_adapter/"
 
-    BASE_MODEL = base_model
+    manifest_f_path = f'{LORA_PATH}/manifest.json'
+    manifest = json.loads(open(manifest_f_path, 'r').read())
+    model_name = manifest['training']['model_name']
+
+    MODEL_SLUG = model_name.replace("/", "_")
+    BASE_MODEL_HF_DIR = f"models/{MODEL_SLUG}"
     OUT_FORMAT = os.getenv('STEP_1_OUT_FORMAT', 'f16')
 
     OUT_BASE_MODEL_DIR = f"{DATA_DIR_NAME}/models/"
-    OUT_BASE_MODEL_FILE = Path(f"{OUT_BASE_MODEL_DIR}/{BASE_MODEL.lower()}_{OUT_FORMAT.lower()}.gguf")
-    OUT_LORA_ADAPTER_FILE = Path(f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GGUF_DIR_NAME}/{BASE_MODEL.lower()}_{dataset_name}_lora_{OUT_FORMAT}.gguf")
+    OUT_BASE_MODEL_FILE = Path(f"{OUT_BASE_MODEL_DIR}/{MODEL_SLUG}.gguf")
+    OUT_LORA_ADAPTER_FILE = Path(f"{lora_dir_path}/lora.gguf")
 
     os.makedirs(os.path.dirname(OUT_BASE_MODEL_FILE), exist_ok=True)
     os.makedirs(os.path.dirname(OUT_LORA_ADAPTER_FILE), exist_ok=True)
@@ -53,9 +70,9 @@ def process(
     converter_path = str(LLAMA_CPP_DIR / "convert_hf_to_gguf.py")
 
     if os.path.isfile(converter_path):
-        model_f = f'models/{BASE_MODEL}'
+        model_f = BASE_MODEL_HF_DIR
         if not os.path.isfile(OUT_BASE_MODEL_FILE):
-            print(f"===> Converting models/{BASE_MODEL} to the .gguf format")
+            print(f"===> Converting models/{MODEL_SLUG} to the .gguf format")
             subprocess.run([
                 sys.executable, str(LLAMA_CPP_DIR / "convert_hf_to_gguf.py"),
                 model_f,
@@ -69,7 +86,7 @@ def process(
             LORA_ADAPTER_PATH,
             '--outfile', OUT_LORA_ADAPTER_FILE,
             '--outtype', OUT_FORMAT,
-            '--base', f'models/{BASE_MODEL}'
+            '--base', model_f
         ], check=True)
 
         print(f"Base model: {OUT_BASE_MODEL_FILE}")
@@ -81,93 +98,31 @@ def process(
 
     quatizator_path = str(LLAMA_BIN_DIR / "llama-quantize.exe")
 
-    BASE_MODEL_Q4 = f'{OUT_BASE_MODEL_DIR}/{BASE_MODEL.lower()}_q4_k_m.gguf'
+    BASE_MODEL_Q4 = Path(f'{OUT_BASE_MODEL_DIR}/{MODEL_SLUG}_q4_k_m.gguf')
     if not os.path.isfile(BASE_MODEL_Q4):
         if os.path.isfile(quatizator_path):
             subprocess.run([
                 quatizator_path,
                 OUT_BASE_MODEL_FILE,
-                BASE_MODEL_Q4,
+                str(BASE_MODEL_Q4.resolve()),
                 'q4_k_m'
             ], check=True)
         else:
             print(f"===> Error: can't find quantizator: {quatizator_path}")
 
-    # =====================================================================
-    # Embedding LoRA adapter -> .gguf (if step_0_train_embedding has produced one)
-    # =====================================================================
-    EMBEDDING_LORA_PATH = (
-        f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/"
-        f"{LORA_EMBEDDING_DIR_NAME}"
-    )
-    EMBEDDING_FINAL_ADAPTER = f"{EMBEDDING_LORA_PATH}/final_adapter"
+    manifest['gguf'] = {
+        'lora_f_path': str(OUT_LORA_ADAPTER_FILE.as_posix()),
+        'model_f_path': str(BASE_MODEL_Q4.as_posix())
+    }
+    update_manifest(manifest_f_path, manifest)
 
-    if not os.path.isdir(EMBEDDING_FINAL_ADAPTER):
-        print(f"===> No embedding LoRA adapter at {EMBEDDING_FINAL_ADAPTER} — skipping embedding gguf export.")
-    elif not os.path.isfile(converter_path):
-        print(f"===> Converter missing ({converter_path}) — skipping embedding gguf export.")
-    else:
-        adapter_dir = _find_peft_adapter_dir(EMBEDDING_FINAL_ADAPTER)
-        if adapter_dir is None:
-            print(f"===> Warning: adapter_config.json not found under {EMBEDDING_FINAL_ADAPTER} — skipping embedding gguf export.")
-        else:
-            EMB_MODEL_SLUG = embedding_base_model.replace("/", "_")
-            EMB_BASE_MODEL_HF_DIR = f"models/{EMB_MODEL_SLUG}"
-            EMB_BASE_GGUF = Path(
-                f"{OUT_BASE_MODEL_DIR}/{EMB_MODEL_SLUG.lower()}_{OUT_FORMAT.lower()}.gguf"
-            )
-            EMB_LORA_GGUF = Path(
-                f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/{GGUF_DIR_NAME}/"
-                f"{EMB_MODEL_SLUG.lower()}_embedding_lora_{OUT_FORMAT}.gguf"
-            )
-
-            os.makedirs(EMB_LORA_GGUF.parent, exist_ok=True)
-
-            if not os.path.isdir(EMB_BASE_MODEL_HF_DIR):
-                print(
-                    f"===> Warning: embedding base model dir not found at "
-                    f"{EMB_BASE_MODEL_HF_DIR}. Run step_0_train_embedding first "
-                    f"(it auto-downloads the base) or set --embedding_base_model "
-                    f"to a locally available HF model. Skipping embedding gguf export."
-                )
-            else:
-                if not os.path.isfile(EMB_BASE_GGUF):
-                    print(f"===> Converting embedding base {EMB_BASE_MODEL_HF_DIR} to .gguf")
-                    subprocess.run([
-                        sys.executable, converter_path,
-                        EMB_BASE_MODEL_HF_DIR,
-                        '--outfile', str(EMB_BASE_GGUF),
-                        '--outtype', OUT_FORMAT,
-                    ], check=True)
-                else:
-                    print(f"===> Embedding base gguf already exists: {EMB_BASE_GGUF}")
-
-                print(f"===> Converting embedding LoRA adapter to .gguf: {adapter_dir}")
-                subprocess.run([
-                    sys.executable, str(LLAMA_CPP_DIR / "convert_lora_to_gguf.py"),
-                    adapter_dir,
-                    '--outfile', str(EMB_LORA_GGUF),
-                    '--outtype', OUT_FORMAT,
-                    '--base', EMB_BASE_MODEL_HF_DIR,
-                ], check=True)
-
-                print(f"Embedding base: {EMB_BASE_GGUF}")
-                print(f"Embedding LoRA: {EMB_LORA_GGUF}")
-
+    make_inference_config(lora_dir_path)
     print('\n Ready!')
 
 if __name__ == '__main__':
-    COMMIT = os.getenv("COMMIT")
-    NPC_NAME = os.getenv("NPC_NAME")
-    FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    DATASET_NAME = os.getenv("DATASET_NAME", 'chat')
-    BASE_MODEL = os.getenv("STEP_1_BASE_MODEL")
-    EMBEDDING_BASE_MODEL = os.getenv("STEP_1_EMBEDDING_BASE_MODEL", "BAAI/bge-base-en-v1.5")
-    process(
-        git_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        base_model=BASE_MODEL,
-        dataset_name=DATASET_NAME,
-        embedding_base_model=EMBEDDING_BASE_MODEL,
-    )
+    hash = 'f71e60c'
+    hash = '3d1c75f'
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
+    process(lora_path)
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
+    process(lora_path)

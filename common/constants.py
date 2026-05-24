@@ -6,9 +6,15 @@ DATASET_DIR_NAME = '3_dataset'
 EMBEDDING_DATASET_DIR_NAME = '3_embedding_dataset'
 MODELS_DIR_NAME = 'models'
 
-LORA_DIR_NAME = 'training/0_lora'
-LORA_EMBEDDING_DIR_NAME = 'training/0_lora_embedding'
+LORA_DIR_NAME = 'training/lora'
+LORA_EMBEDDING_DIR_NAME = 'training/lora_embedding'
 GGUF_DIR_NAME = 'training/1_gguf'
 VALIDATION_RESULT_DIR_NAME = 'training/2_validation'
 
 ACTION_FOR_IRRELEVANT_REQUESTS = 'DoNothing'
+
+SENTENCE2_MODE_USER_REQUEST = 'user_request'
+SENTENCE2_MODE_ACTION_SIGNATURE = 'action_signature'
+
+CHAT_LLM_PREFIX = 'chat'
+TOOL_CALLING_LLM_PREFIX = 'tool_calling'
