@@ -256,7 +256,7 @@ def process(
         # llama.cpp cannot map during GGUF export.  BGE does not use the pooler
         # head for the final embedding (mean-pooling is used instead), so
         # training Q/K/V is sufficient for retrieval adaptation.
-        target_modules=["query", "key", "value"],
+        target_modules=["query", "key", "value", "dense"],
         lora_dropout=0.05,
         bias="none",
         task_type=TaskType.FEATURE_EXTRACTION,
