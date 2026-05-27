@@ -135,6 +135,68 @@ def _load_mnr_dataset(
     return Dataset.from_list(pairs_only)
 
 
+# Known LoRA-trainable module suffixes across encoder/decoder architectures.
+# Auto-detection (see _detect_target_modules) intersects these with what the
+# loaded model actually exposes — so a new architecture only requires adding
+# its suffixes here, no per-model branching in the training code.
+_KNOWN_LORA_SUFFIXES = frozenset({
+    # BERT / BGE / RoBERTa / DeBERTa
+    'query', 'key', 'value', 'dense',
+    # LLaMA / Qwen / Mistral / Gemma / Phi3 (decoder-style attn + FFN)
+    'q_proj', 'k_proj', 'v_proj', 'o_proj',
+    'gate_proj', 'up_proj', 'down_proj',
+    # Fallback for some HF wrappers
+    'in_proj', 'out_proj',
+})
+
+# Module-name fragments to skip even when the suffix matches. Currently only
+# the BERT pooler — llama.cpp's BERT GGUF converter has no mapping for
+# pooler.dense.* and crashes on export. The pooler is unused by BGE at
+# inference (mean-pooling is used), so excluding it is lossless.
+_LORA_EXCLUDE_FRAGMENTS = ('pooler',)
+
+
+def _detect_target_modules(model) -> str:
+    """Build a PEFT-compatible regex for `target_modules` by introspecting
+    the loaded model.
+
+    Returns a regex string (not a list) so PEFT uses `re.fullmatch` on each
+    module name. The pattern matches modules whose final name component is a
+    known LoRA target suffix AND whose full path does not contain any of
+    `_LORA_EXCLUDE_FRAGMENTS`.
+
+    Examples produced:
+        BGE/BERT:  ^(?!.*pooler).*\\.(dense|key|query|value)$
+        Qwen3:     .*\\.(down_proj|gate_proj|k_proj|o_proj|q_proj|up_proj|v_proj)$
+    """
+    found = set()
+    for name, _ in model.named_modules():
+        suffix = name.rsplit('.', 1)[-1]
+        if suffix not in _KNOWN_LORA_SUFFIXES:
+            continue
+        if any(frag in name for frag in _LORA_EXCLUDE_FRAGMENTS):
+            continue
+        found.add(suffix)
+
+    if not found:
+        raise RuntimeError(
+            "Could not auto-detect LoRA target modules for this base model. "
+            "Inspect `[name for name, _ in model.named_modules()]` and add "
+            "the relevant attention/FFN suffixes to _KNOWN_LORA_SUFFIXES."
+        )
+
+    alt = '|'.join(sorted(found))
+    # Only emit the negative-lookahead clause when we actually have anything
+    # to exclude — keeps the pattern tidy on Qwen/LLaMA which have no pooler.
+    if any(_check_any_module_contains(model, frag) for frag in _LORA_EXCLUDE_FRAGMENTS):
+        return rf"^(?!.*({'|'.join(_LORA_EXCLUDE_FRAGMENTS)})).*\.({alt})$"
+    return rf".*\.({alt})$"
+
+
+def _check_any_module_contains(model, fragment: str) -> bool:
+    return any(fragment in name for name, _ in model.named_modules())
+
+
 @task(name="step_0_train_embedding_lora_adapter")
 def process(
         git_commit: str,
@@ -256,20 +318,34 @@ def process(
     model = SentenceTransformer(model_path)
 
     logger.info("Applying LoRA configuration...")
+    # Auto-detect target modules — handles BERT-family (BGE) and decoder-style
+    # backbones (Qwen3, LLaMA, Mistral, ...) without per-arch branching.
+    # Excludes BERT pooler so the LoRA adapter can be exported to GGUF.
+    target_modules_pattern = _detect_target_modules(model)
+    logger.info(f"LoRA target_modules pattern: {target_modules_pattern}")
+
     lora_config = LoraConfig(
         r=lora_rank,
         lora_alpha=lora_alpha,
-        # "dense" deliberately excluded: it matches bert.pooler.dense which
-        # llama.cpp cannot map during GGUF export.  BGE does not use the pooler
-        # head for the final embedding (mean-pooling is used instead), so
-        # training Q/K/V is sufficient for retrieval adaptation.
-        target_modules=["query", "key", "value", "dense"],
+        target_modules=target_modules_pattern,
         lora_dropout=0.05,
         bias="none",
         task_type=TaskType.FEATURE_EXTRACTION,
     )
     # sentence-transformers >=3.0 routes add_adapter to the underlying transformer
     model.add_adapter(lora_config)
+
+    # Sanity check: nothing in _LORA_EXCLUDE_FRAGMENTS should have been wrapped.
+    leaked = [
+        n for n, _ in model.named_parameters()
+        if any(frag in n for frag in _LORA_EXCLUDE_FRAGMENTS)
+        and ('lora_a' in n.lower() or 'lora_b' in n.lower())
+    ]
+    if leaked:
+        raise RuntimeError(
+            f"Excluded modules were unexpectedly wrapped by LoRA: {leaked}. "
+            f"GGUF export will likely fail."
+        )
 
     # Print trainable params manually (ST doesn't expose print_trainable_parameters)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -384,29 +460,30 @@ if __name__ == "__main__":
     COMMIT = os.getenv("COMMIT")
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
-    LOSS_NAME = LOSS_MNR
 
     NUM_TRAIN_EPOCH = int(os.getenv('STEP_0_NUM_TRAIN_EPOCH', 1))
-    '''
-    process(
-        git_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        dataset_name=SENTENCE2_MODE_USER_REQUEST,
-        loss_name=LOSS_NAME,
-        num_train_epoch=NUM_TRAIN_EPOCH,
-    )
+    if False:
+        LOSS_NAME = LOSS_MNR
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_name=SENTENCE2_MODE_USER_REQUEST,
+            loss_name=LOSS_NAME,
+            num_train_epoch=NUM_TRAIN_EPOCH,
+        )
 
-    process(
-        git_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        dataset_name=SENTENCE2_MODE_ACTION_SIGNATURE,
-        loss_name=LOSS_NAME,
-        num_train_epoch=NUM_TRAIN_EPOCH,
-    )
-    '''
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_name=SENTENCE2_MODE_ACTION_SIGNATURE,
+            loss_name=LOSS_NAME,
+            num_train_epoch=NUM_TRAIN_EPOCH,
+        )
+
     LOSS_NAME = LOSS_COSENT
+    model = os.getenv('STEP_0_EMB_MODEL_NAME')
 
     process(
         git_commit=COMMIT,
@@ -415,6 +492,8 @@ if __name__ == "__main__":
         dataset_name=SENTENCE2_MODE_USER_REQUEST,
         loss_name=LOSS_NAME,
         num_train_epoch=NUM_TRAIN_EPOCH,
+        base_model=model,
+        batch_size=8
     )
 
     process(
@@ -424,4 +503,6 @@ if __name__ == "__main__":
         dataset_name=SENTENCE2_MODE_ACTION_SIGNATURE,
         loss_name=LOSS_NAME,
         num_train_epoch=NUM_TRAIN_EPOCH,
+        base_model=model,
+        batch_size=8
     )

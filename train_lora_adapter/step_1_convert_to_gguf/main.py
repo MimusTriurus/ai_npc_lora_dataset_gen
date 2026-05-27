@@ -5,6 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
+
+from prefect.server.events.jinja_filters import flow_run_id
+
 from common.constants import *
 from prefect import task
 
@@ -120,8 +123,35 @@ def process(
     print('\n Ready!')
 
 if __name__ == '__main__':
-    hash = os.getenv('TRAINING_SESSION_HASH')
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
-    process(lora_path)
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
-    process(lora_path)
+    unreal_hash = os.getenv('COMMIT')
+    npc_name = os.getenv('NPC_NAME')
+    flow_run_id = os.getenv('FLOW_RUN_ID')
+
+
+    emb_model = os.getenv('STEP_0_EMB_MODEL_NAME')
+    emb_hash = os.getenv('EMB_TRAINING_SESSION_HASH')
+
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora_embedding/{emb_model}/user_request/{emb_hash}'
+    if os.path.isdir(lora_path):
+        process(lora_path)
+    else:
+        print(f"===> Error: can't find lora embedding: {lora_path}")
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora_embedding/{emb_model}/action_signature/{emb_hash}'
+    if os.path.isdir(lora_path):
+        process(lora_path)
+    else:
+        print(f"===> Error: can't find lora embedding: {lora_path}")
+
+    llm_model = os.getenv('STEP_0_MODEL_NAME')
+    llm_hash = os.getenv('LLM_TRAINING_SESSION_HASH')
+
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora/{llm_model}/chat/{llm_hash}'
+    if os.path.isdir(lora_path):
+        process(lora_path)
+    else:
+        print(f"===> Error: can't find lora llm: {lora_path}")
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora/{llm_model}/tool_calling/{llm_hash}'
+    if os.path.isdir(lora_path):
+        process(lora_path)
+    else:
+        print(f"===> Error: can't find lora llm: {lora_path}")

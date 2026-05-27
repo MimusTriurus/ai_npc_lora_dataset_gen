@@ -54,11 +54,13 @@ def list_files(folder_path: str) -> list[str]:
         if os.path.isfile(os.path.join(folder_path, name))
     ]
 
-def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config: dict, inference_type: Type):
-    flow_run_dir_path = f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}'
+def inference(
+        inference_config: dict,
+        inference_type: Type,
+        validation_dataset_dir_path: str
+):
     # region ENV vars
     requests_count = int(os.getenv('STEP_2_MAX_REQUESTS_COUNT', 10))
-    validation_dataset_dir_path = f'{flow_run_dir_path}/{DATASET_DIR_NAME}/chat_validation'
     # endregion
 
     if not os.path.isdir(validation_dataset_dir_path):
@@ -137,6 +139,7 @@ def inference(git_commit: str, npc_name: str, flow_run_id: str, inference_config
                 total_fails += 1
                 args_fails[file_name] += 1
                 print(f'==> Error! Wrong action args!\n Valid: {valid_action_args}\n Current: {action_args}')
+
     print('')
     print('--- RESULTS ---')
     print(f'=== Json parse fails: {json_parse_fails}/{total_requests} ===')

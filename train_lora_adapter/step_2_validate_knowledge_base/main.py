@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import Dict
-
+from prefect import task
 from ullama_python.ullama import ULlamaWrapper
 from common.constants import DATASET_DIR_NAME, CHAT_LLM_PREFIX
 from common.helpers import list_files, read_dataset_file
@@ -10,6 +10,7 @@ from common.manifest import Manifest
 
 QUERY_PREFIX="Represent this sentence for searching relevant passages: "
 
+@task(name="step_2_lora_validation")
 def process(model_dir_path: str):
     black_list = os.getenv('ACTIONS_BLACK_LIST', '').split(',')
     threshold = float(os.getenv('STEP_2_EMB_THRESHOLD', 0.4))
@@ -132,9 +133,10 @@ def process(model_dir_path: str):
 
 
 if __name__ == "__main__":
-    hash = os.getenv('TRAINING_SESSION_HASH')
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
+    model = os.getenv('STEP_0_EMB_MODEL_NAME')
+    hash = os.getenv('EMB_TRAINING_SESSION_HASH')
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
     process(lora_path)
 
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/action_signature/{hash}'
     process(lora_path)

@@ -44,3 +44,6 @@ class Manifest:
 
     def emb_request_prefix(self):
         return self.obj["training"]['query_prefix']
+
+    def to_dict(self):
+        return self.obj

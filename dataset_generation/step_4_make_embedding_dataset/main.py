@@ -20,7 +20,7 @@ from common.helpers import (
     update_manifest,
 )
 
-black_list_for_dialogs_per_action = os.getenv('STEP_4E_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
+black_list_for_dialogs_per_action = os.getenv('STEP_4_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
 
 
 def _record_key(npc_response: dict) -> Tuple[str, str, str, dict]:

@@ -1,3 +1,5 @@
+import os
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -59,13 +61,11 @@ def metrics_agg(m: dict) -> dict:
 
 
 def make_metrics_plot(
-    git_commit: str,
-    npc_name: str,
-    flow_run_id: str,
     metrics_model_base: dict,
     metrics_model_lora: dict,
+    lora_dir_path: str,
 ):
-    flow_run_dir_path = f"{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}"
+    flow_run_dir_path = lora_dir_path
     total_requests = metrics_model_lora["total_requests"]
 
     charts = [
@@ -81,9 +81,13 @@ def make_metrics_plot(
 
 
 if __name__ == "__main__":
-    COMMIT = "7c01ee7d6b644dbf4d5ccc2b9c1db9adab96b34a"[:7]
-    NPC_NAME = "trader"
-    FLOW_RUN_ID = "v1"
+    unreal_hash = os.getenv('COMMIT')
+    npc_name = os.getenv('NPC_NAME')
+    flow_run_id = os.getenv('FLOW_RUN_ID')
+
+    llm_model = os.getenv('STEP_0_MODEL_NAME')
+    llm_hash = os.getenv('LLM_TRAINING_SESSION_HASH')
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora/{llm_model}/chat/{llm_hash}'
 
     metrics_base_model = {
         "total_fails": 10,
@@ -108,9 +112,7 @@ if __name__ == "__main__":
     }
 
     make_metrics_plot(
-        COMMIT,
-        NPC_NAME,
-        FLOW_RUN_ID,
         metrics_base_model,
         metrics_lora_model,
+        lora_path
     )

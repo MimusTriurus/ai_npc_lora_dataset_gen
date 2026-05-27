@@ -80,7 +80,7 @@ def process(
     manifest = Manifest(manifest_f_path)
 
     # temporary solution
-    black_list = os.getenv('STEP_4E_BLACK_LIST_FOR_DIALOGS_PER_ACTION', '').split(',')
+    black_list = os.getenv('ACTIONS_BLACK_LIST', '').split(',')
 
     # NOTE: STEP_5_MAX_RECORDS_PER_ACTION is obsolete since the KB is now
     # deduplicated by (action_name, parameters). One chunk per variant.
@@ -145,8 +145,9 @@ def process(
 
 
 if __name__ == "__main__":
-    hash = os.getenv('TRAINING_SESSION_HASH')
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/user_request/{hash}'
+    model = os.getenv('STEP_0_EMB_MODEL_NAME')
+    hash = os.getenv('EMB_TRAINING_SESSION_HASH')
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
     process(lora_path)
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/BAAI/bge-base-en-v1.5/action_signature/{hash}'
+    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/action_signature/{hash}'
     process(lora_path)

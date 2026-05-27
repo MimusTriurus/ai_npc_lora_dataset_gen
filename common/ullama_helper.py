@@ -1,8 +1,9 @@
 import ctypes
 import json
+import time
 from typing import Optional, Tuple, List, Dict
 
-from ullama_python.ullama import ULlamaWrapper, split_think_and_json
+from ullama_python.ullama_python.ullama import ULlamaWrapper, split_think_and_json
 
 from common.helpers import replace_unicode
 
@@ -22,7 +23,7 @@ class ULlamaHelper:
     - Returns (answer_text, think_block) — same shape as OllamaHelper.
     """
 
-    TOKEN_BUF_SIZE = 512
+    TOKEN_BUF_SIZE = 16 * 1024
 
     def __init__(self, base_config: dict) -> None:
         """
@@ -116,7 +117,7 @@ class ULlamaHelper:
     def _load_model(self, model_path: str, system_prompt: str) -> None:
         self._teardown()
 
-        cfg = self._build_config(model_path, system_prompt)
+        cfg = self._base_config #self._build_config(model_path, system_prompt)
         cfg_bytes = json.dumps(cfg).encode("utf-8")
         self._api = ULlamaWrapper()
         self._model = self._api.lib.ullama_load_model(cfg_bytes)
@@ -146,15 +147,25 @@ class ULlamaHelper:
         self._loaded_system_prompt = system_prompt
 
     def _ask(self, prompt: str) -> str:
-        """Send a single prompt and collect tokens until the worker is done."""
+        """Send a single prompt and block until the worker delivers a complete response.
+
+        Mirrors the C++ ask_and_wait: while the worker is speaking we wait;
+        once it stops we pull the full response in one call. The trailing
+        sleep handles the window between ullama_ask and the start of
+        generation, where is_speaking is still false but no response exists
+        yet — without it we would return "" and leave the real response
+        buffered, which then gets concatenated onto the next request.
+        """
         self._api.lib.ullama_ask(self._worker, prompt.encode("utf-8"))
-        response = ""
-        while self._api.lib.ullama_is_speaking(self._worker):
+        while True:
+            if self._api.lib.ullama_is_speaking(self._worker):
+                time.sleep(0.001)
+                continue
             if self._api.lib.ullama_get_response(
                 self._worker, self._token_buf, self.TOKEN_BUF_SIZE
             ):
-                response += self._token_buf.value.decode("utf-8")
-        return response
+                return self._token_buf.value.decode("utf-8")
+            time.sleep(0.001)
 
     @staticmethod
     def _build_prompt(user_prompt: str, history: Optional[List[dict]]) -> str:
