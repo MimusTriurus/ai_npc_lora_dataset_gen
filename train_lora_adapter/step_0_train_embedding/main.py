@@ -209,7 +209,7 @@ def process(
         lora_rank: int = 16,
         lora_alpha: int = 32,
         batch_size: int = 64,
-        loss_name: str = LOSS_MNR
+        loss_name: str = LOSS_COSENT
 ):
     # Optional query-side prefix (BGE retrieval convention). Empty disables it.
     query_prefix = os.getenv('STEP_0E_QUERY_PREFIX', BGE_QUERY_PREFIX_DEFAULT)
@@ -461,8 +461,11 @@ if __name__ == "__main__":
     NPC_NAME = os.getenv("NPC_NAME")
     FLOW_RUN_ID = os.getenv("FLOW_RUN_ID")
 
-    NUM_TRAIN_EPOCH = int(os.getenv('STEP_0_NUM_TRAIN_EPOCH', 1))
-    if False:
+    NUM_TRAIN_EPOCH = int(os.getenv('STEP_0_EMB_NUM_TRAIN_EPOCH', 1))
+
+    train_mnr = False
+
+    if train_mnr:
         LOSS_NAME = LOSS_MNR
         process(
             git_commit=COMMIT,
@@ -485,24 +488,29 @@ if __name__ == "__main__":
     LOSS_NAME = LOSS_COSENT
     model = os.getenv('STEP_0_EMB_MODEL_NAME')
 
-    process(
-        git_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        dataset_name=SENTENCE2_MODE_USER_REQUEST,
-        loss_name=LOSS_NAME,
-        num_train_epoch=NUM_TRAIN_EPOCH,
-        base_model=model,
-        batch_size=8
-    )
+    use_usr_requests = False
+    use_act_requests = True
 
-    process(
-        git_commit=COMMIT,
-        npc_name=NPC_NAME,
-        flow_run_id=FLOW_RUN_ID,
-        dataset_name=SENTENCE2_MODE_ACTION_SIGNATURE,
-        loss_name=LOSS_NAME,
-        num_train_epoch=NUM_TRAIN_EPOCH,
-        base_model=model,
-        batch_size=8
-    )
+    if use_usr_requests:
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_name=SENTENCE2_MODE_USER_REQUEST,
+            loss_name=LOSS_NAME,
+            num_train_epoch=NUM_TRAIN_EPOCH,
+            base_model=model,
+            batch_size=64
+        )
+
+    if use_act_requests:
+        process(
+            git_commit=COMMIT,
+            npc_name=NPC_NAME,
+            flow_run_id=FLOW_RUN_ID,
+            dataset_name=SENTENCE2_MODE_ACTION_SIGNATURE,
+            loss_name=LOSS_NAME,
+            num_train_epoch=NUM_TRAIN_EPOCH,
+            base_model=model,
+            batch_size=64
+        )

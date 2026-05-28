@@ -3,15 +3,17 @@ import os
 from pathlib import Path
 from typing import Dict
 from prefect import task
-from ullama_python.ullama import ULlamaWrapper
-from common.constants import DATASET_DIR_NAME, CHAT_LLM_PREFIX
+
+from common.metrics_plot_generation import make_emb_metrics_plot
+from ullama_python.ullama_python.ullama import ULlamaWrapper
+from common.constants import DATASET_DIR_NAME, CHAT_LLM_PREFIX, DATA_DIR_NAME
 from common.helpers import list_files, read_dataset_file
 from common.manifest import Manifest
 
 QUERY_PREFIX="Represent this sentence for searching relevant passages: "
 
 @task(name="step_2_lora_validation")
-def process(model_dir_path: str):
+def process(model_dir_path: str, use_lora: bool = True):
     black_list = os.getenv('ACTIONS_BLACK_LIST', '').split(',')
     threshold = float(os.getenv('STEP_2_EMB_THRESHOLD', 0.4))
     TOP_K = int(os.getenv('STEP_2_TOP_K', 1))
@@ -19,6 +21,9 @@ def process(model_dir_path: str):
     manifest_f_path = os.path.abspath(f'{model_dir_path}/manifest.json')
     manifest = Manifest(manifest_f_path)
     ullama_inference_cfg = json.loads(open(f'{model_dir_path}/inference_cfg.json', "r", encoding="utf-8").read())
+
+    if not use_lora:
+        del ullama_inference_cfg['lora_adapter']
 
     ENCODING = "utf-8"
     api = ULlamaWrapper()
@@ -116,9 +121,9 @@ def process(model_dir_path: str):
 
     validation_results = {
         "TOP_K": TOP_K,
-        "fails_per_action" : emb_fails,
-        "total_fails" : sum(emb_fails.values()),
         "total_requests": total_requests,
+        "total_fails" : sum(emb_fails.values()),
+        "fails_per_action": emb_fails,
     }
 
     manifest.set_validation_results(validation_results)
@@ -131,12 +136,26 @@ def process(model_dir_path: str):
     print(json.dumps(emb_fails, indent=4))
     print(f'=== End ===')
 
+    return validation_results
+
 
 if __name__ == "__main__":
+    unreal_hash = os.getenv('COMMIT')
+    npc_name = os.getenv('NPC_NAME')
+    flow_run_id = os.getenv('FLOW_RUN_ID')
     model = os.getenv('STEP_0_EMB_MODEL_NAME')
     hash = os.getenv('EMB_TRAINING_SESSION_HASH')
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
-    process(lora_path)
+    #lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
+    #process(lora_path)
 
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/action_signature/{hash}'
-    process(lora_path)
+    lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora_embedding/{model}/action_signature/{hash}'
+    lora_errors = process(model_dir_path=lora_path, use_lora=True)
+
+    base_errors = process(model_dir_path=lora_path, use_lora=False)
+
+    make_emb_metrics_plot(
+        base_errors,
+        lora_errors,
+        lora_path
+    )
+

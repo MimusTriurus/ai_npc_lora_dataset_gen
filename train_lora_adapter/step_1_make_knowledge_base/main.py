@@ -147,7 +147,7 @@ def process(
 if __name__ == "__main__":
     model = os.getenv('STEP_0_EMB_MODEL_NAME')
     hash = os.getenv('EMB_TRAINING_SESSION_HASH')
-    lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
-    process(lora_path)
+    #lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/user_request/{hash}'
+    #process(lora_path)
     lora_path = f'input_data/7c01ee7/trader/v2/training/lora_embedding/{model}/action_signature/{hash}'
     process(lora_path)
