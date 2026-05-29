@@ -25,32 +25,48 @@ class ULlamaHelper:
 
     TOKEN_BUF_SIZE = 16 * 1024
 
-    def __init__(self, base_config: dict) -> None:
+    def __init__(self, base_config: dict, init_chat: bool = True) -> None:
         """
         Parameters
         ----------
         base_config : dict
-            Must contain at least:
+            Chat config. Must contain at least:
               "model"        – path to the .gguf base model
               "lora_adapter" – path to the LoRA adapter .gguf
             Optional keys forwarded to the engine verbatim:
               "grammar", "temperature", etc.
+        init_chat : bool
+            When False, no chat model/worker is loaded. Use this for
+            embedding-only flows that only need the knowledge base.
         """
         self._base_config: dict = dict(base_config)
 
         self._api: Optional[ULlamaWrapper] = None
+
+        # Chat resources (own model + worker, driven by base_config)
         self._model = None
         self._worker = None
+
+        # Knowledge-base resources (own config + own embedding model + worker)
+        self._kb_config: Optional[dict] = None
+        self._kb_model = None
+        self._kb_worker = None
+
         self._token_buf = ctypes.create_string_buffer(self.TOKEN_BUF_SIZE)
 
         # Track what is currently loaded so we know when to reload
         self._loaded_model_path: Optional[str] = None
         self._loaded_system_prompt: Optional[str] = None
 
-        self._load_model(
-            model_path=self._base_config.get("model", ""),
-            system_prompt=self._base_config.get("system_prompt", ""),
-        )
+        if init_chat:
+            self._load_model(
+                model_path=self._base_config.get("model", ""),
+                system_prompt=self._base_config.get("system_prompt", ""),
+            )
+        else:
+            # Embedding-only flow: we still need an API handle so the KB
+            # can be initialised later via kb_init(...).
+            self._api = ULlamaWrapper()
 
     # ------------------------------------------------------------------
     # Public API (mirrors OllamaHelper)
@@ -103,8 +119,88 @@ class ULlamaHelper:
             return None, None
 
     # ------------------------------------------------------------------
+    # Knowledge base API (mirrors step_2_validate_knowledge_base/main.py)
+    # ------------------------------------------------------------------
+
+    def kb_init(self, kb_config: dict, chunks: List[str]) -> None:
+        """
+        Build a knowledge base. The KB uses its OWN config and loads its own
+        embedding model — independent of the chat model/config.
+
+        Parameters
+        ----------
+        kb_config : embedding-model config (own "model"/"lora_adapter"/etc.),
+                    same shape as the inference_cfg used in
+                    step_2_validate_knowledge_base/main.py.
+        chunks    : plain-text passages (e.g. action signatures) to index.
+        """
+        if self._api is None:
+            self._api = ULlamaWrapper()
+
+        # Drop any previous KB (worker + embedding model)
+        self._dispose_kb()
+
+        self._kb_config = dict(kb_config)
+        cfg_bytes = json.dumps(self._kb_config).encode("utf-8")
+
+        self._kb_model = self._api.lib.ullama_load_model(cfg_bytes)
+        if not self._kb_model:
+            self._dispose_kb()
+            raise RuntimeError("kb_init: ullama_load_model failed — check KB config")
+
+        self._kb_worker = self._api.lib.ullama_kb_make()
+        if not self._api.lib.ullama_kb_init(self._kb_worker, cfg_bytes, self._kb_model):
+            self._dispose_kb()
+            raise RuntimeError("ullama_kb_init failed — check KB model / config paths")
+
+        for chunk_text in chunks:
+            self._api.lib.ullama_kb_add_chunk(
+                self._kb_worker, chunk_text.encode("utf-8")
+            )
+        self._api.lib.ullama_kb_update(self._kb_worker)
+
+    def kb_add_chunk(self, chunk_text: str) -> None:
+        if self._kb_worker is None:
+            raise RuntimeError("kb_add_chunk: knowledge base is not initialised")
+        self._api.lib.ullama_kb_add_chunk(
+            self._kb_worker, chunk_text.encode("utf-8")
+        )
+
+    def kb_update(self) -> None:
+        if self._kb_worker is None:
+            raise RuntimeError("kb_update: knowledge base is not initialised")
+        self._api.lib.ullama_kb_update(self._kb_worker)
+
+    def kb_search(self, query: str, top_k: int = 1) -> List[Tuple[int, float]]:
+        """Return up to top_k (chunk_index, score) pairs for the query."""
+        if self._kb_worker is None:
+            raise RuntimeError("kb_search: knowledge base is not initialised")
+        return self._api.search_top_n(
+            kb_handle=self._kb_worker,
+            query=query,
+            top_k=top_k,
+        )
+
+    def kb_dispose(self) -> None:
+        self._dispose_kb()
+
+    # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _dispose_kb(self) -> None:
+        """Release the KB worker and its embedding model (chat is untouched)."""
+        if self._api is None:
+            self._kb_worker = None
+            self._kb_model = None
+            return
+        if self._kb_worker is not None:
+            self._api.lib.ullama_kb_dispose(self._kb_worker)
+            self._kb_worker = None
+        if self._kb_model is not None:
+            self._api.lib.ullama_free_model(self._kb_model)
+            self._kb_model = None
+
 
     def _build_config(self, model_path: str, system_prompt: str) -> dict:
         cfg = dict(self._base_config)
@@ -191,6 +287,7 @@ class ULlamaHelper:
         """Release native resources if they exist."""
         if self._api is None:
             return
+        self._dispose_kb()
         if self._worker is not None:
             self._api.lib.ullama_dispose(self._worker)
             self._worker = None
