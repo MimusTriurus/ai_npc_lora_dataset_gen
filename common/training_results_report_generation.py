@@ -70,6 +70,11 @@ def generate_validation_report(
     def actions_inline(actions: dict) -> str:
         return ", ".join(f"`{k}`: {v}" for k, v in actions.items())
 
+    def split_total(split: dict) -> int:
+        """Total examples in a dataset split. Falls back to summing the
+        per-action counts when the manifest has no (or a zero) `total` field."""
+        return split.get("total", 0) or sum(split.get("actions", {}).values())
+
     # ── Build report ───────────────────────────────────────────────────
     lines: list[str] = []
 
@@ -103,8 +108,8 @@ def generate_validation_report(
         f"",
         f"| Split | Actions | Total |",
         f"|---|---|---:|",
-        f"| Training   | {actions_inline(ds_train.get('actions', {}))} | **{ds_train.get('total', 0)}** |",
-        f"| Validation | {actions_inline(ds_val.get('actions', {}))} | **{ds_val.get('total', 0)}** |",
+        f"| Training   | {actions_inline(ds_train.get('actions', {}))} | **{split_total(ds_train)}** |",
+        f"| Validation | {actions_inline(ds_val.get('actions', {}))} | **{split_total(ds_val)}** |",
         f"",
         f"---",
         f"",

@@ -31,7 +31,7 @@ from common.constants import (
     LORA_EMBEDDING_DIR_NAME,
     MODELS_DIR_NAME, SENTENCE2_MODE_USER_REQUEST, SENTENCE2_MODE_ACTION_SIGNATURE,
 )
-from common.helpers import update_manifest, make_hash
+from common.helpers import update_manifest, make_hash, is_env_var_true
 
 warnings.filterwarnings("ignore")
 logging.getLogger("transformers").setLevel(logging.WARNING)
@@ -135,6 +135,75 @@ def _load_mnr_dataset(
     return Dataset.from_list(pairs_only)
 
 
+def _build_ir_evaluator(
+        folder_glob: str,
+        query_prefix: str,
+        score_high: float,
+        accuracy_at_k: list,
+        name: str = "val",
+):
+    """Build an InformationRetrievalEvaluator mirroring the step_2 retrieval
+    task (user request -> action signature), so the best checkpoint is chosen
+    by accuracy@k rather than the loss value.
+
+    Corpus  = every distinct sentence2 (action signature) seen in the split.
+    Queries = every sentence1 that has at least one high-score pair.
+    Relevant = the high-score sentence2(s) for that query.
+
+    Returns None if the split yields no positive (high-score) pairs.
+    """
+    from sentence_transformers.sentence_transformer.evaluation import (
+        InformationRetrievalEvaluator,
+    )
+
+    raw = load_dataset("json", data_files=folder_glob, split="train")
+
+    queries: dict = {}
+    corpus: dict = {}
+    relevant: dict = {}
+    sig_to_cid: dict = {}
+    query_to_qid: dict = {}
+
+    for row in raw:
+        s1 = row.get("sentence1")
+        s2 = row.get("sentence2")
+        score = row.get("score")
+        if s1 is None or s2 is None:
+            continue
+        # Every action signature is a retrievable document.
+        if s2 not in sig_to_cid:
+            cid = f"c{len(sig_to_cid)}"
+            sig_to_cid[s2] = cid
+            corpus[cid] = s2
+        if score == score_high:
+            query = f"{query_prefix}{s1}" if query_prefix else s1
+            if query not in query_to_qid:
+                qid = f"q{len(query_to_qid)}"
+                query_to_qid[query] = qid
+                queries[qid] = query
+                relevant[qid] = set()
+            relevant[query_to_qid[query]].add(sig_to_cid[s2])
+
+    if not queries:
+        return None
+
+    ks = sorted(set(int(k) for k in accuracy_at_k))
+    max_k = max(ks)
+    return InformationRetrievalEvaluator(
+        queries=queries,
+        corpus=corpus,
+        relevant_docs=relevant,
+        accuracy_at_k=ks,
+        precision_recall_at_k=ks,
+        mrr_at_k=[max_k],
+        ndcg_at_k=[max_k],
+        map_at_k=[max_k],
+        name=name,
+        show_progress_bar=False,
+        write_csv=True,
+    )
+
+
 # Known LoRA-trainable module suffixes across encoder/decoder architectures.
 # Auto-detection (see _detect_target_modules) intersects these with what the
 # loaded model actually exposes — so a new architecture only requires adding
@@ -214,13 +283,42 @@ def process(
     # Optional query-side prefix (BGE retrieval convention). Empty disables it.
     query_prefix = os.getenv('STEP_0E_QUERY_PREFIX', BGE_QUERY_PREFIX_DEFAULT)
 
+    # ── Hyperparameters read up-front so they can feed the run hash ────────
+    learning_rate = float(os.getenv('STEP_0E_LEARNING_RATE', 2e-5))
+    gradient_accumulation = int(os.getenv('STEP_0E_GRADIENT_ACCUMULATION', 1))
+    weight_decay = float(os.getenv('STEP_0E_WEIGHT_DECAY', 0.01))
+    eval_strategy = os.getenv('STEP_0E_EVAL_STRATEGY', 'epoch')
+    eval_steps = int(os.getenv('STEP_0E_EVAL_STEPS', 100))
+    warmup_ratio = float(os.getenv('STEP_0E_WARMUP_RATIO', 0.1))
+    # Fixed warmup length (in optimizer steps). Takes precedence over
+    # warmup_ratio when > 0. Prefer this when num_train_epoch is set with a
+    # large margin and training is cut by early stopping: warmup_ratio is
+    # computed from the FULL planned horizon, so a huge epoch count pushes
+    # warmup past the actual stop step — the LR then only ever ramps up and
+    # the cosine decay never kicks in. A fixed step count avoids that.
+    warmup_steps = int(os.getenv('STEP_0E_WARMUP_STEPS', 0))
+    seed = int(os.getenv('STEP_0E_SEED', 42))
+    # Select the best checkpoint by retrieval accuracy@k (the real objective)
+    # instead of eval_loss — CoSENT/MNR loss is a poor proxy for top-k retrieval.
+    # k mirrors the deployment top_k used by step_2 validation.
+    select_by_retrieval = is_env_var_true('STEP_0E_SELECT_BY_RETRIEVAL')  # unset -> True
+    best_accuracy_k = int(os.getenv('STEP_0E_BEST_ACCURACY_K', 1))
+
+    # Hash every parameter that changes the resulting adapter, so distinct
+    # configs land in distinct output dirs (otherwise an experiment varying
+    # only the LR/warmup would collide with a prior run and get skipped).
     hyper_params_hash = make_hash(
         num_train_epoch,
         lora_rank,
         lora_alpha,
         batch_size,
         loss_name,
-        query_prefix
+        query_prefix,
+        learning_rate,
+        weight_decay,
+        warmup_ratio,
+        warmup_steps,
+        seed,
     )[:7]
     output_dir = (
         f'{DATA_DIR_NAME}/{git_commit}/{npc_name}/{flow_run_id}/'
@@ -244,21 +342,6 @@ def process(
         logger.info(f"Model not found locally, downloading from HuggingFace: {base_model}")
         from huggingface_hub import snapshot_download
         snapshot_download(repo_id=base_model, local_dir=model_path)
-
-    learning_rate = float(os.getenv('STEP_0E_LEARNING_RATE', 2e-5))
-    gradient_accumulation = int(os.getenv('STEP_0E_GRADIENT_ACCUMULATION', 1))
-    weight_decay = float(os.getenv('STEP_0E_WEIGHT_DECAY', 0.01))
-    eval_strategy = os.getenv('STEP_0E_EVAL_STRATEGY', 'epoch')
-    eval_steps = int(os.getenv('STEP_0E_EVAL_STEPS', 100))
-    warmup_ratio = float(os.getenv('STEP_0E_WARMUP_RATIO', 0.1))
-    # Fixed warmup length (in optimizer steps). Takes precedence over
-    # warmup_ratio when > 0. Prefer this when num_train_epoch is set with a
-    # large margin and training is cut by early stopping: warmup_ratio is
-    # computed from the FULL planned horizon, so a huge epoch count pushes
-    # warmup past the actual stop step — the LR then only ever ramps up and
-    # the cosine decay never kicks in. A fixed step count avoids that.
-    warmup_steps = int(os.getenv('STEP_0E_WARMUP_STEPS', 0))
-    seed = int(os.getenv('STEP_0E_SEED', 42))
 
     # Loss choice: MNR (default, retrieval-style) with CoSENT as fallback.
 
@@ -373,6 +456,35 @@ def process(
 
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
 
+    # Retrieval evaluator (accuracy@k) — used to pick the best checkpoint when
+    # STEP_0E_SELECT_BY_RETRIEVAL is on. Falls back to eval_loss if it can't be
+    # built (e.g. no high-score pairs in the validation split).
+    ir_evaluator = None
+    if select_by_retrieval:
+        ir_evaluator = _build_ir_evaluator(
+            val_glob,
+            query_prefix,
+            score_high,
+            accuracy_at_k=sorted({1, best_accuracy_k}),
+            name="val",
+        )
+        if ir_evaluator is None:
+            logger.warning(
+                "Could not build retrieval evaluator (no high-score pairs in "
+                "validation) — falling back to eval_loss for checkpoint selection."
+            )
+
+    if ir_evaluator is not None:
+        # Evaluator metrics are prefixed with 'eval_' by the trainer; the
+        # score function for BGE is cosine -> 'eval_val_cosine_accuracy@k'.
+        metric_for_best_model = f"eval_val_cosine_accuracy@{best_accuracy_k}"
+        greater_is_better = True
+    else:
+        metric_for_best_model = "eval_loss"
+        greater_is_better = False
+    logger.info(f"Best-checkpoint metric: {metric_for_best_model} "
+                f"(greater_is_better={greater_is_better})")
+
     args = SentenceTransformerTrainingArguments(
         output_dir=output_dir,
         num_train_epochs=num_train_epoch,
@@ -394,8 +506,8 @@ def process(
         save_steps=eval_steps,
         save_total_limit=3,
         load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
+        metric_for_best_model=metric_for_best_model,
+        greater_is_better=greater_is_better,
 
         logging_steps=10,
         logging_first_step=True,
@@ -416,6 +528,7 @@ def process(
         train_dataset=train_ds,
         eval_dataset=val_ds,
         loss=loss,
+        evaluator=ir_evaluator,
         callbacks=[early_stopping],
     )
 
@@ -453,6 +566,7 @@ def process(
             'weight_decay': weight_decay,
             'warmup_ratio': warmup_ratio,
             'warmup_steps': warmup_steps,
+            'metric_for_best_model': metric_for_best_model,
             'seed': seed,
             'loss': (
                 'MultipleNegativesRankingLoss' if loss_name == LOSS_MNR
