@@ -5,6 +5,7 @@ from typing import Dict
 from prefect import task
 
 from common.metrics_plot_generation import make_emb_metrics_plot
+from common.training_results_report_generation import generate_validation_report
 from ullama_python.ullama_python.ullama import ULlamaWrapper
 from common.constants import DATASET_DIR_NAME, CHAT_LLM_PREFIX, DATA_DIR_NAME
 from common.helpers import list_files, read_dataset_file
@@ -136,7 +137,7 @@ def process(model_dir_path: str, use_lora: bool = True):
     print(json.dumps(emb_fails, indent=4))
     print(f'=== End ===')
 
-    return validation_results
+    return validation_results, manifest
 
 
 if __name__ == "__main__":
@@ -149,13 +150,22 @@ if __name__ == "__main__":
     #process(lora_path)
 
     lora_path = f'{DATA_DIR_NAME}/{unreal_hash}/{npc_name}/{flow_run_id}/training/lora_embedding/{model}/action_signature/{hash}'
-    lora_errors = process(model_dir_path=lora_path, use_lora=True)
+    lora_errors, lora_manifest = process(model_dir_path=lora_path, use_lora=True)
 
-    base_errors = process(model_dir_path=lora_path, use_lora=False)
+    base_errors, base_manifest = process(model_dir_path=lora_path, use_lora=False)
 
     make_emb_metrics_plot(
         base_errors,
         lora_errors,
         lora_path
     )
+
+    md_report = generate_validation_report(
+        lora_manifest.to_dict(),
+        metrics_base=base_errors,
+        metrics_lora=lora_errors,
+    )
+
+    with open(os.path.join(f'{lora_path}/reports/', 'report.md'), 'w', encoding="utf-8") as f:
+        f.write(md_report)
 

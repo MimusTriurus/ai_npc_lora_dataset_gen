@@ -251,6 +251,13 @@ def process(
     eval_strategy = os.getenv('STEP_0E_EVAL_STRATEGY', 'epoch')
     eval_steps = int(os.getenv('STEP_0E_EVAL_STEPS', 100))
     warmup_ratio = float(os.getenv('STEP_0E_WARMUP_RATIO', 0.1))
+    # Fixed warmup length (in optimizer steps). Takes precedence over
+    # warmup_ratio when > 0. Prefer this when num_train_epoch is set with a
+    # large margin and training is cut by early stopping: warmup_ratio is
+    # computed from the FULL planned horizon, so a huge epoch count pushes
+    # warmup past the actual stop step — the LR then only ever ramps up and
+    # the cosine decay never kicks in. A fixed step count avoids that.
+    warmup_steps = int(os.getenv('STEP_0E_WARMUP_STEPS', 0))
     seed = int(os.getenv('STEP_0E_SEED', 42))
 
     # Loss choice: MNR (default, retrieval-style) with CoSENT as fallback.
@@ -281,6 +288,10 @@ def process(
     logger.info(f"Batch size (per device): {batch_size}")
     logger.info(f"Gradient accumulation: {gradient_accumulation}")
     logger.info(f"LoRA rank/alpha: {lora_rank}/{lora_alpha}")
+    logger.info(
+        f"Warmup: {warmup_steps} steps" if warmup_steps > 0
+        else f"Warmup: {warmup_ratio} ratio"
+    )
     logger.info(f"Loss: {loss_name}")
     logger.info(f"Query prefix: {query_prefix!r}" if query_prefix else "Query prefix: <none>")
     logger.info("=" * 50 + "\n")
@@ -370,6 +381,8 @@ def process(
         gradient_accumulation_steps=gradient_accumulation,
         learning_rate=learning_rate,
         weight_decay=weight_decay,
+        # warmup_steps takes precedence over warmup_ratio when > 0 (HF behavior).
+        warmup_steps=warmup_steps,
         warmup_ratio=warmup_ratio,
         lr_scheduler_type="cosine",
         bf16=use_bf16,
@@ -439,6 +452,7 @@ def process(
             'lora_alpha': lora_alpha,
             'weight_decay': weight_decay,
             'warmup_ratio': warmup_ratio,
+            'warmup_steps': warmup_steps,
             'seed': seed,
             'loss': (
                 'MultipleNegativesRankingLoss' if loss_name == LOSS_MNR
@@ -485,7 +499,8 @@ if __name__ == "__main__":
             num_train_epoch=NUM_TRAIN_EPOCH,
         )
 
-    LOSS_NAME = LOSS_COSENT
+    LOSS_NAME = os.getenv('STEP_0E_LOSS', LOSS_COSENT)
+    BATCH_SIZE = int(os.getenv('STEP_0E_BATCH_SIZE', 64))
     model = os.getenv('STEP_0_EMB_MODEL_NAME')
 
     use_usr_requests = False
@@ -500,7 +515,7 @@ if __name__ == "__main__":
             loss_name=LOSS_NAME,
             num_train_epoch=NUM_TRAIN_EPOCH,
             base_model=model,
-            batch_size=64
+            batch_size=BATCH_SIZE
         )
 
     if use_act_requests:
@@ -512,5 +527,5 @@ if __name__ == "__main__":
             loss_name=LOSS_NAME,
             num_train_epoch=NUM_TRAIN_EPOCH,
             base_model=model,
-            batch_size=64
+            batch_size=BATCH_SIZE
         )

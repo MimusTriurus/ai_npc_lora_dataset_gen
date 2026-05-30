@@ -8,15 +8,24 @@ def generate_validation_report(
     manifest: dict,
     metrics_base: dict,
     metrics_lora: dict,
+    title: str = "LoRA Validation Report",
 ) -> str:
     """
     Builds a Markdown validation report comparing base model vs LoRA adapter.
+
+    Works for both the LLM LoRA metrics (with json/action/args fail keys and a
+    per-action-args table) and the embedding LoRA metrics (which only carry
+    total_fails / fails_per_action). Rows and tables are rendered only when the
+    corresponding key is present in the metrics, so the same function serves
+    both pipelines.
 
     Parameters
     ----------
     manifest      : parsed manifest.json dict
     metrics_base  : metrics dict for the base model
     metrics_lora  : metrics dict for the LoRA fine-tuned model
+    title         : report heading (e.g. "LoRA Validation Report" or
+                    "Embedding LoRA Validation Report")
 
     Returns
     -------
@@ -64,8 +73,21 @@ def generate_validation_report(
     # ── Build report ───────────────────────────────────────────────────
     lines: list[str] = []
 
+    def summary_row(label: str, key: str) -> str | None:
+        """Render a summary row only if the metric key exists in the metrics."""
+        if key not in metrics_base and key not in metrics_lora:
+            return None
+        b = metrics_base.get(key, 0)
+        l = metrics_lora.get(key, 0)
+        return (
+            f"| {label} "
+            f"| {b} ({pct(b, total)}) "
+            f"| {l} ({pct(l, total)}) "
+            f"| {delta_str(b, l, total)} |"
+        )
+
     lines += [
-        f"# LoRA Validation Report",
+        f"# {title}",
         f"",
         f"| | |",
         f"|---|---|",
@@ -92,40 +114,41 @@ def generate_validation_report(
         f"",
         f"| Metric | Base model | LoRA model | Δ |",
         f"|---|---:|---:|---|",
-        f"| **Total fails** "
-            f"| {metrics_base['total_fails']} ({pct(metrics_base['total_fails'], total)}) "
-            f"| {metrics_lora['total_fails']} ({pct(metrics_lora['total_fails'], total)}) "
-            f"| {delta_str(metrics_base['total_fails'], metrics_lora['total_fails'], total)} |",
-        f"| JSON parse fails "
-            f"| {metrics_base['json_parse_fails']} ({pct(metrics_base['json_parse_fails'], total)}) "
-            f"| {metrics_lora['json_parse_fails']} ({pct(metrics_lora['json_parse_fails'], total)}) "
-            f"| {delta_str(metrics_base['json_parse_fails'], metrics_lora['json_parse_fails'], total)} |",
-        f"| JSON structure fails "
-            f"| {metrics_base['json_structure_fails']} ({pct(metrics_base['json_structure_fails'], total)}) "
-            f"| {metrics_lora['json_structure_fails']} ({pct(metrics_lora['json_structure_fails'], total)}) "
-            f"| {delta_str(metrics_base['json_structure_fails'], metrics_lora['json_structure_fails'], total)} |",
-        f"| Actions fails "
-            f"| {metrics_base['total_action_fails']} ({pct(metrics_base['total_action_fails'], total)}) "
-            f"| {metrics_lora['total_action_fails']} ({pct(metrics_lora['total_action_fails'], total)}) "
-            f"| {delta_str(metrics_base['total_action_fails'], metrics_lora['total_action_fails'], total)} |",
-        f"| Actions args fails "
-            f"| {metrics_base['total_args_fails']} ({pct(metrics_base['total_args_fails'], total)}) "
-            f"| {metrics_lora['total_args_fails']} ({pct(metrics_lora['total_args_fails'], total)}) "
-            f"| {delta_str(metrics_base['total_args_fails'], metrics_lora['total_args_fails'], total)} |",
-        f"",
-        f"---",
-        f"",
-        f"## Action Fails",
-        f"",
-        dict_table(metrics_base["fails_per_action"], metrics_lora["fails_per_action"], total),
-        f"",
-        f"---",
-        f"",
-        f"## Args Fails",
-        f"",
-        dict_table(metrics_base["fails_per_action_args"], metrics_lora["fails_per_action_args"], total),
-        f"",
     ]
+
+    summary_specs = [
+        ("**Total fails**", "total_fails"),
+        ("JSON parse fails", "json_parse_fails"),
+        ("JSON structure fails", "json_structure_fails"),
+        ("Actions fails", "total_action_fails"),
+        ("Actions args fails", "total_args_fails"),
+    ]
+    lines += [row for label, key in summary_specs
+              if (row := summary_row(label, key)) is not None]
+
+    if "fails_per_action" in metrics_base or "fails_per_action" in metrics_lora:
+        lines += [
+            f"",
+            f"---",
+            f"",
+            f"## Action Fails",
+            f"",
+            dict_table(metrics_base.get("fails_per_action", {}),
+                       metrics_lora.get("fails_per_action", {}), total),
+        ]
+
+    if "fails_per_action_args" in metrics_base or "fails_per_action_args" in metrics_lora:
+        lines += [
+            f"",
+            f"---",
+            f"",
+            f"## Args Fails",
+            f"",
+            dict_table(metrics_base.get("fails_per_action_args", {}),
+                       metrics_lora.get("fails_per_action_args", {}), total),
+        ]
+
+    lines += [f""]
 
     return "\n".join(lines)
 
